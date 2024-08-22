@@ -18,7 +18,7 @@
   <body>
     <canvas id="main-canvas"></canvas>
     <script type="module">
-      import init, { initialize, resize, redraw } from "./pkg/pino.js";
+      import init, { initialize, resize, redraw, add_primitive } from "./pkg/pino.js";
       import {CanvasManager, DrawingManager} from "./js/www/js/canvas/main.js";
 
 
@@ -38,7 +38,6 @@
          * Called automatically before first draw
          */
         prepare() {
-          
           initialize(this.cm.canvasElement.id);
         }
 
@@ -48,7 +47,6 @@
 
 
         redraw() {
-          console.log("yyyyy" + this.cm.canvasElement.id)
           redraw(this.cm.canvasElement.id);
         }
       }
@@ -58,10 +56,10 @@
         console.log(canvas.id);
         let cm = new CanvasManager(canvas);
         cm.setDrawingManager(new WebGlDrawingManager());
+
+        add_primitive(canvas.id, [250, 300, 1, 280, 200, 1, 350, 400, 1, 400, 350, 1], 0.6, 0.7, 0.8, 1.0);
+
         cm.redraw();
-        // initialize('main-canvas');
-        // resize("main-canvas",200,200);
-        // redraw("main-canvas")
       });
     </script>
   </body>

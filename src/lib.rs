@@ -1,8 +1,8 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, primitive};
 
 use base::log;
 use once_cell::*;
-use renderer::{draw, Renderer};
+use renderer::{draw, Primitive, Renderer};
 use sync::Lazy;
 use wasm_bindgen::prelude::*;
 use web_sys::{Event, WebGl2RenderingContext};
@@ -81,16 +81,53 @@ pub fn resize(canvas_id : &str, width : u32, height : u32) -> Result<(), JsValue
 #[wasm_bindgen]
 pub fn redraw(canvas_id : &str) -> Result<(), JsValue> {
 
-    unsafe {
-        let option = CONTEXTS.get(canvas_id);
-        match option {
-            Some(context) => {
-                draw(&context.renderer);
-            },
-            None => ()
-        }
-    }
-
+    draw(&get_context(canvas_id).renderer);
 
     Ok(())
 }
+
+fn get_context(canvas_id : &str) -> &mut Context {
+    let option: Option<&mut Context>;
+    unsafe {
+        option = CONTEXTS.get_mut(canvas_id);
+    }
+    match option {
+        Some(context) => {
+            context
+        },
+        None => {panic!("No context with name {}", canvas_id)}
+    }
+}
+
+
+#[wasm_bindgen]
+pub struct JsPoint {
+    pub x : f64,
+    pub y : f64
+}
+
+#[wasm_bindgen]
+pub fn add_primitive(canvas_id : &str, vertices : Vec<f32>, r:f32, g:f32, b:f32, a:f32) {
+    let context = get_context(canvas_id);
+
+    
+    let primitive = Primitive{
+        vertices : vertices,
+        fill: renderer::Brush::COLOR(r, g, b, a)
+    };
+
+    context.renderer.add_primitive(primitive);
+}
+
+// #[wasm_bindgen]
+// pub fn add_primitive_gradient(canvas_id : &str, vertices : Vec<f32>, x1:f32, y1:f32, r1:f32, g1:f32, b1:f32, a1:f32, x2:f32, y2:f32, r2:f32, g2:f32, b2:f32, a2:f32) {
+//     let context = get_context(canvas_id);
+
+    
+//     let primitive = Primitive{
+//         vertices : vertices,
+//         fill: renderer::Brush::LINEAR_GRADIENT(r, g, b, a)
+//     };
+
+//     context.renderer.add_primitive(primitive);
+// }
