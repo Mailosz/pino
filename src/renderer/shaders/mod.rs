@@ -2,22 +2,18 @@ use web_sys::{WebGl2RenderingContext, WebGlProgram, WebGlShader, WebGlUniformLoc
 
 
 const vertex_shader_source : &str = r##"#version 300 es
-        #pragma debug(on) 
+            //#pragma debug(on) 
             // an attribute will receive data from a buffer
             in vec2 a_pos;
             uniform vec2 u_res;
 
-            //out vec4 out_pos;
+            in vec2 gradient_coord;
+            out vec4 gradient_stops;
 
-            // void normaizuj(inout vvv, in res) {
-
-            // }
-
-
-            void main() {
-
+            vec2 normalizuj(in vec2 pos, in vec2 res);
+            vec2 normalizuj(in vec2 pos, in vec2 res) {
                 // convert the position from pixels to 0.0 to 1.0
-                vec2 zeroToOne = a_pos / u_res;
+                vec2 zeroToOne = pos / res;
             
                 // convert from 0->1 to 0->2
                 vec2 zeroToTwo = zeroToOne * 2.0;
@@ -25,7 +21,15 @@ const vertex_shader_source : &str = r##"#version 300 es
                 // convert from 0->2 to -1->+1 (clip space)
                 vec2 clipSpace = zeroToTwo - 1.0;
             
-                gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
+                return clipSpace * vec2(1, -1);
+            }
+
+
+            void main() {
+                
+                gl_Position = vec4(normalizuj(a_pos, u_res), 0, 1);
+
+                gradient_stops = vec4(normalizuj(gradient_coord, u_res), 0, 1);
             }
         "##;
 
@@ -44,6 +48,8 @@ const fragemnt_shader_source : &str = r##"#version 300 es
                 // is responsible for setting
                 if (u_brush_type == uint(1)) { // solid color
                     out_color = u_color;
+                } else if (u_brush_type == uint(2)) { // linear gradient
+                    out_color = vec4(1.0, 1.0, 0.2, 1.0);
                 } else {
                     out_color = vec4(1.0, 0.2, 0.2, 1.0);
                 }
@@ -122,6 +128,7 @@ pub struct ShaderInfo {
     pub u_color : Option<WebGlUniformLocation>,
     pub u_res : Option<WebGlUniformLocation>,
     pub a_pos : u32,
+    pub gradient_coord : u32,
     pub u_brush_type : Option<WebGlUniformLocation>
 }
 
@@ -136,6 +143,7 @@ pub fn create_shader_program(gl : &WebGl2RenderingContext) -> (WebGlProgram, Sha
         u_color : gl.get_uniform_location(&program, "u_color"),
         u_res : gl.get_uniform_location(&program, "u_res"),
         a_pos : gl.get_attrib_location(&program, "a_pos") as u32,
+        gradient_coord : gl.get_attrib_location(&program, "gradient_coord") as u32,
         u_brush_type : gl.get_uniform_location(&program, "u_brush_type"),
     };
 

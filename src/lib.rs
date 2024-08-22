@@ -2,7 +2,7 @@ use std::{collections::HashMap, primitive};
 
 use base::log;
 use once_cell::*;
-use renderer::{draw, Primitive, Renderer};
+use renderer::{draw, Gradient, Primitive, Renderer};
 use sync::Lazy;
 use wasm_bindgen::prelude::*;
 use web_sys::{Event, WebGl2RenderingContext};
@@ -119,15 +119,18 @@ pub fn add_primitive(canvas_id : &str, vertices : Vec<f32>, r:f32, g:f32, b:f32,
     context.renderer.add_primitive(primitive);
 }
 
-// #[wasm_bindgen]
-// pub fn add_primitive_gradient(canvas_id : &str, vertices : Vec<f32>, x1:f32, y1:f32, r1:f32, g1:f32, b1:f32, a1:f32, x2:f32, y2:f32, r2:f32, g2:f32, b2:f32, a2:f32) {
-//     let context = get_context(canvas_id);
+#[wasm_bindgen]
+pub fn add_primitive_gradient(canvas_id : &str, vertices : Vec<f32>, x1:f32, y1:f32, r1:f32, g1:f32, b1:f32, a1:f32, x2:f32, y2:f32, r2:f32, g2:f32, b2:f32, a2:f32) {
+    let context = get_context(canvas_id);
 
     
-//     let primitive = Primitive{
-//         vertices : vertices,
-//         fill: renderer::Brush::LINEAR_GRADIENT(r, g, b, a)
-//     };
+    let primitive = Primitive{
+        vertices : vertices,
+        fill: renderer::Brush::LINEAR_GRADIENT(Gradient{
+            coords : vec![x1, y1, x2, y2],
+            colors : vec![r1, g1, b1, a1, r2, g2, b2, a2],
+        })
+    };
 
-//     context.renderer.add_primitive(primitive);
-// }
+    context.renderer.add_primitive(primitive);
+}

@@ -29,7 +29,7 @@ impl Renderer {
     }
 
 
-    pub fn set_vertices(&self, vertices : &[f32]) {
+    pub fn set_vertices(&self, attribute : u32, vertices : &[f32], size : i32) {
 
         let buffer = self.gl.create_buffer().ok_or("Failed to create buffer").unwrap();
         self.gl.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, Some(&buffer));
@@ -61,14 +61,14 @@ impl Renderer {
 
         let position_attribute_location = 
         self.gl.vertex_attrib_pointer_with_i32(
-            self.shader_info.a_pos,
-            3,
+            attribute,
+            size,
             WebGl2RenderingContext::FLOAT,
             false,
             0,
             0,
         );
-        self.gl.enable_vertex_attrib_array(self.shader_info.a_pos);
+        self.gl.enable_vertex_attrib_array(attribute);
 
         self.gl.bind_vertex_array(Some(&vao));
 
@@ -76,7 +76,7 @@ impl Renderer {
 
     fn draw_primitive(&self, primitive : &Primitive) {
     
-        self.set_vertices(&primitive.vertices);
+        self.set_vertices(self.shader_info.a_pos, &primitive.vertices, 3);
         self.set_brush(&primitive.fill);
         self.gl.draw_arrays(WebGl2RenderingContext::TRIANGLE_STRIP, 0, (primitive.vertices.len() / 3) as i32);
     }
@@ -97,9 +97,8 @@ impl Renderer {
                 self.gl.uniform1ui(self.shader_info.u_brush_type.as_ref(), 1);
                 self.gl.uniform4f(self.shader_info.u_color.as_ref(), f32::to_owned(r), f32::to_owned(g), f32::to_owned(b), f32::to_owned(a));
             },
-            Brush::LINEAR_GRADIENT(x) => {
+            Brush::LINEAR_GRADIENT(gradient) => {
                 self.gl.uniform1ui(self.shader_info.u_brush_type.as_ref(), 2);
-
 
             }
         };
