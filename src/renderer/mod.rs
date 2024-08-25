@@ -230,7 +230,7 @@ pub fn tesselate_polygon(polygon : Polygon) -> Vec<Triangles> {
     let mut strips : Vec<Triangles> = Vec::new();
     let mut current : Pos;
 
-    for i in 1..polygon.points.len()-1 {addresses.push(i)};
+    for i in 1..polygon.points.len() {addresses.push(i)};
     addresses.push(0);
 
     fn get_next(polygon : &Polygon, addresses: &mut Vec<usize>, index : &mut Index) -> Pos {
@@ -241,6 +241,7 @@ pub fn tesselate_polygon(polygon : Polygon) -> Vec<Triangles> {
     let mut a = get_next(&polygon, &mut addresses, &mut index);
     let mut b = get_next(&polygon, &mut addresses, &mut index);
     let mut c = get_next(&polygon, &mut addresses, &mut index);
+
     
     fn is_convex(a : &Pos, b : &Pos, c : &Pos, rotation : &Rotation) -> bool {
         let d1 = f32::atan2(a.point.x() - b.point.x(), a.point.y() - b.point.y());
@@ -251,7 +252,8 @@ pub fn tesselate_polygon(polygon : Polygon) -> Vec<Triangles> {
         match rotation {
             Rotation::Clockwise => d > PI,
             Rotation::CounterClockwise => d < PI
-        }
+        };
+        true
     }
     
     'outer : loop {
@@ -265,16 +267,18 @@ pub fn tesselate_polygon(polygon : Polygon) -> Vec<Triangles> {
             strip.push(b.point.x());
             strip.push(b.point.y());
             
+
             loop {
                 strip.push(c.point.x());
                 strip.push(c.point.y());
 
                 
                 size -= 1;
-                log(size.to_string().as_str());
                 b = c;
                 c = get_next(&polygon, &mut addresses, &mut index);
+
                 if (size < 4) {
+
                     strip.push(c.point.x());
                     strip.push(c.point.y());
                     strips.push(Triangles{vertices : strip, mode : TrianglesMode::Fan});
@@ -288,7 +292,7 @@ pub fn tesselate_polygon(polygon : Polygon) -> Vec<Triangles> {
             strips.push(Triangles{vertices : strip, mode : TrianglesMode::Fan});
             addresses[a.index] = b.index;
         } 
-
+        log("Not convex");
         a = b;
         b = c;
         c = get_next(&polygon, &mut addresses, &mut index);
