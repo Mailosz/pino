@@ -1,8 +1,8 @@
-use std::{borrow::Borrow, f32::consts::PI, primitive};
+use std::{borrow::Borrow, f32::consts::PI, primitive, time::Instant};
 
-use shaders::{create_fragment_shader, create_shader_program, create_vertex_shader, ShaderInfo};
+use shaders::{ create_shader_program, ShaderInfo};
 use wasm_bindgen::prelude::*;
-use web_sys::{WebGl2RenderingContext, WebGlProgram, WebGlShader};
+use web_sys::{console::{time_end_with_label, time_with_label}, WebGl2RenderingContext, WebGlProgram, WebGlShader};
 use crate::base::*;
 
 mod shaders;
@@ -196,6 +196,8 @@ pub struct Polygon {
 
 pub fn draw(renderer: &Renderer) {
 
+    time_with_label("Render time");
+
     renderer.gl.clear_color(0.0, 0.0, 0.2, 1.0);
     renderer.gl.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
 
@@ -203,6 +205,8 @@ pub fn draw(renderer: &Renderer) {
 
         renderer.draw_primitive(primitive);
     }
+
+    time_end_with_label("Render time");
 }
 
 

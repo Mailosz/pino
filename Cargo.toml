@@ -32,5 +32,6 @@ features = [
   'WebGlProgram',
   'WebGlShader',
   'Window',
+  'console',
 ]
 version = "0.3.70"

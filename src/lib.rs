@@ -1,3 +1,4 @@
+#![allow(warnings)]
 use std::{collections::HashMap, f32::consts::PI, primitive};
 
 use base::log;
