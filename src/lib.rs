@@ -116,8 +116,8 @@ pub fn add_primitive(canvas_id : &str, vertices : Vec<f32>, r:f32, g:f32, b:f32,
     let t = if(typ == "fan"){TrianglesMode::Fan}else{TrianglesMode::Strip};
     
     let primitive = Primitive{
-        strips : vec![Triangles{vertices: vertices, mode: t}],
-        fill: renderer::Brush::COLOR(r, g, b, a)
+        parts : vec![Triangles{vertices: vertices, mode: t}],
+        fill: renderer::Brush::Color(r, g, b, a)
     };
 
     context.renderer.add_primitive(primitive);
@@ -139,8 +139,8 @@ pub fn add_primitive_linear_gradient(canvas_id : &str, vertices : Vec<f32>, x1:f
     }
     
     let primitive = Primitive{
-        strips : vec![Triangles{vertices: vertices, mode: TrianglesMode::Strip}],
-        fill: renderer::Brush::LINEAR_GRADIENT(Gradient{
+        parts : vec![Triangles{vertices: vertices, mode: TrianglesMode::Strip}],
+        fill: renderer::Brush::LinearGradient(Gradient{
             x1 : x1,
             y1 : y1,
             x2 : x2,
@@ -165,7 +165,7 @@ pub fn add_polygon(canvas_id : &str, points : Vec<f32>) {
 
     let strips = tesselate_polygon(polygon);
 
-    let primitive = Primitive{strips : strips, fill : renderer::Brush::COLOR(1.0, 1.0, 1.0, 1.0)};
+    let primitive = Primitive{parts : strips, fill : renderer::Brush::Color(1.0, 1.0, 1.0, 1.0)};
 
     context.renderer.add_primitive(primitive);
 }

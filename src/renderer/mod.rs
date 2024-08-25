@@ -3,7 +3,7 @@ use std::{borrow::Borrow, f32::consts::PI, primitive, time::Instant};
 use shaders::{ create_shader_program, ShaderInfo};
 use wasm_bindgen::prelude::*;
 use web_sys::{console::{time_end_with_label, time_with_label}, WebGl2RenderingContext, WebGlProgram, WebGlShader};
-use crate::base::*;
+use crate::{base::*, point::Point};
 
 mod shaders;
 
@@ -23,7 +23,7 @@ impl Renderer {
         Renderer{
             gl,
             program : program,
-            primitives : vec![Primitive{strips : vec![Triangles{vertices:vec![10.0, 30.0, 170.0, 30.0, 100.0, 170.0], mode: TrianglesMode::Strip}], fill: Brush::COLOR(0.2, 0.7, 0.5, 1.0)}],
+            primitives : vec![Primitive{parts : vec![Triangles{vertices:vec![10.0, 30.0, 170.0, 30.0, 100.0, 170.0], mode: TrianglesMode::Strip}], fill: Brush::Color(0.2, 0.7, 0.5, 1.0)}],
             shader_info : shader_info
         }
     }
@@ -79,7 +79,7 @@ impl Renderer {
         const coords_per_vertex : i32 = 2;
     
         self.set_brush(&primitive.fill);
-        for strip in &primitive.strips {
+        for strip in &primitive.parts {
             self.set_vertices(self.shader_info.a_pos, &strip.vertices, coords_per_vertex as i32);
             match strip.mode {
                 TrianglesMode::Fan =>self.gl.draw_arrays(WebGl2RenderingContext::TRIANGLE_FAN, 0, strip.vertices.len() as i32 / coords_per_vertex ),
@@ -98,11 +98,11 @@ impl Renderer {
 
     fn set_brush(&self, brush : &Brush) {
         match brush {
-            Brush::COLOR(r, g, b, a) => {
+            Brush::Color(r, g, b, a) => {
                 self.gl.uniform1ui(self.shader_info.u_brush_type.as_ref(), 1);
                 self.gl.uniform4f(self.shader_info.u_color.as_ref(), f32::to_owned(r), f32::to_owned(g), f32::to_owned(b), f32::to_owned(a));
             },
-            Brush::LINEAR_GRADIENT(gradient) => {
+            Brush::LinearGradient(gradient) => {
                 self.gl.uniform1ui(self.shader_info.u_brush_type.as_ref(), 2);
 
                 self.gl.uniform2f(self.shader_info.gradient_start.as_ref(), gradient.x1, gradient.y1);
@@ -127,7 +127,7 @@ impl Renderer {
 
 
 pub struct Primitive {
-    pub strips : Vec<Triangles>,
+    pub parts : Vec<Triangles>,
     pub fill : Brush
 }
 
@@ -157,8 +157,8 @@ pub struct GradientStop {
 }
 
 pub enum Brush {
-    COLOR(f32, f32, f32, f32),
-    LINEAR_GRADIENT(Gradient),
+    Color(f32, f32, f32, f32),
+    LinearGradient(Gradient),
 }
 
 #[derive(Clone, Copy)]
@@ -246,11 +246,13 @@ pub fn tesselate_polygon(polygon : Polygon) -> Vec<Triangles> {
     let mut b = get_next(&polygon, &mut addresses, &mut index);
     let mut c = get_next(&polygon, &mut addresses, &mut index);
 
-    
-    fn is_convex(a : &Pos, b : &Pos, c : &Pos, rotation : &Rotation) -> bool {
-        let d1 = f32::atan2(a.point.x() - b.point.x(), a.point.y() - b.point.y());
-        let d2 = f32::atan2(c.point.x() - b.point.x(), c.point.y() - b.point.y());
-        
+    /**
+     * Checks whether angle abc is convex, and if the point c is visible from a (TODO)
+     */
+    fn is_visible(a : &Pos, b : &Pos, c : &Pos, rotation : &Rotation) -> bool {
+        let d1 = f32::atan2(a.point.y() - b.point.y(), a.point.x() - b.point.x());
+        let d2 = f32::atan2(c.point.y() - b.point.y(), c.point.x() - b.point.x());
+
         let d = d2 - d1;
         
         match rotation {
@@ -261,7 +263,7 @@ pub fn tesselate_polygon(polygon : Polygon) -> Vec<Triangles> {
     }
     
     'outer : loop {
-        let convex = is_convex(&a, &b, &c, &polygon.rotation);
+        let convex = is_visible(&a, &b, &c, &polygon.rotation);
         
         if convex { // found possible triangle
             //TODO: check przecięcie z innymi liniami
@@ -290,7 +292,7 @@ pub fn tesselate_polygon(polygon : Polygon) -> Vec<Triangles> {
                 }
 
 
-                if !is_convex(&a, &b, &c, &polygon.rotation) {break};
+                if !is_visible(&a, &b, &c, &polygon.rotation) {break};
             }
             log("EEEEyyyeee");
             strips.push(Triangles{vertices : strip, mode : TrianglesMode::Fan});

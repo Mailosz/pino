@@ -1,15 +1,15 @@
 use web_sys::{WebGl2RenderingContext, WebGlProgram, WebGlShader, WebGlUniformLocation};
 
 
-const vertex_shader_source : &str = include_str!("vertex_shader.hlsl");
+const VERTEX_SHADER_SOURCE : &str = include_str!("vertex_shader.hlsl");
 
-const fragemnt_shader_source : &str = include_str!("fragment_shader.hlsl");
+const FRAGEMNT_SHADER_SOURCE : &str = include_str!("fragment_shader.hlsl");
 
 pub fn create_vertex_shader(gl : &WebGl2RenderingContext) -> WebGlShader {
     compile_shader(
         gl,
         WebGl2RenderingContext::VERTEX_SHADER,
-        vertex_shader_source,
+        VERTEX_SHADER_SOURCE,
     ).unwrap()
 }
 
@@ -17,7 +17,7 @@ pub fn create_fragment_shader(gl : &WebGl2RenderingContext) -> WebGlShader {
     compile_shader(
         gl,
         WebGl2RenderingContext::FRAGMENT_SHADER,
-        fragemnt_shader_source
+        FRAGEMNT_SHADER_SOURCE
     ).unwrap()
 }
 
