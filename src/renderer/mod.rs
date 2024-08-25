@@ -1,4 +1,4 @@
-use std::primitive;
+use std::{borrow::Borrow, f32::consts::PI, primitive};
 
 use shaders::{create_fragment_shader, create_shader_program, create_vertex_shader, ShaderInfo};
 use wasm_bindgen::prelude::*;
@@ -23,13 +23,13 @@ impl Renderer {
         Renderer{
             gl,
             program : program,
-            primitives : vec![Primitive{vertices : vec![10.0, 30.0, 100.0, 170.0, 30.0, 100.0, 100.0, 170.0, 100.0], fill: Brush::COLOR(0.2, 0.7, 0.5, 1.0)}],
+            primitives : vec![Primitive{strips : vec![Triangles{vertices:vec![10.0, 30.0, 170.0, 30.0, 100.0, 170.0], mode: TrianglesMode::Strip}], fill: Brush::COLOR(0.2, 0.7, 0.5, 1.0)}],
             shader_info : shader_info
         }
     }
 
 
-    pub fn set_vertices(&self, attribute : u32, vertices : &[f32], size : i32) {
+    pub fn set_vertices(&self, attribute : u32, vertices : &[f32], coords_per_vertex : i32) {
 
         let buffer = self.gl.create_buffer().ok_or("Failed to create buffer").unwrap();
         self.gl.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, Some(&buffer));
@@ -62,7 +62,7 @@ impl Renderer {
         let position_attribute_location = 
         self.gl.vertex_attrib_pointer_with_i32(
             attribute,
-            size,
+            coords_per_vertex,
             WebGl2RenderingContext::FLOAT,
             false,
             0,
@@ -75,10 +75,18 @@ impl Renderer {
     }
 
     fn draw_primitive(&self, primitive : &Primitive) {
+
+        const coords_per_vertex : i32 = 2;
     
-        self.set_vertices(self.shader_info.a_pos, &primitive.vertices, 3);
         self.set_brush(&primitive.fill);
-        self.gl.draw_arrays(WebGl2RenderingContext::TRIANGLE_STRIP, 0, (primitive.vertices.len() / 3) as i32);
+        for strip in &primitive.strips {
+            self.set_vertices(self.shader_info.a_pos, &strip.vertices, coords_per_vertex as i32);
+            match strip.mode {
+                TrianglesMode::Fan =>self.gl.draw_arrays(WebGl2RenderingContext::TRIANGLE_FAN, 0, strip.vertices.len() as i32 / coords_per_vertex ),
+                TrianglesMode::Strip =>self.gl.draw_arrays(WebGl2RenderingContext::TRIANGLE_STRIP, 0, strip.vertices.len() as i32 / coords_per_vertex ),
+            }
+            
+        }
     }
 
     pub fn resize_viewport(&self, width : f32, height : f32) {
@@ -86,9 +94,6 @@ impl Renderer {
         let resolution_attribute_location = self.gl.uniform2f(self.shader_info.u_res.as_ref(), width, height);
 
         self.gl.viewport(0,0, width as i32, height as i32);
-
-        // self.width = width;
-        // self.height = height;
     }
 
     fn set_brush(&self, brush : &Brush) {
@@ -100,6 +105,15 @@ impl Renderer {
             Brush::LINEAR_GRADIENT(gradient) => {
                 self.gl.uniform1ui(self.shader_info.u_brush_type.as_ref(), 2);
 
+                self.gl.uniform2f(self.shader_info.gradient_start.as_ref(), gradient.x1, gradient.y1);
+                self.gl.uniform2f(self.shader_info.gradient_end.as_ref(), gradient.x2, gradient.y2);
+
+                self.gl.uniform1i(self.shader_info.gradient_stops_count.as_ref(), gradient.stops.len() as i32);
+                self.gl.uniform4fv_with_f32_array(self.shader_info.colors.as_ref(), &[1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 1.0]);
+                self.gl.uniform1fv_with_f32_array(self.shader_info.gradient_stops.as_ref(), &[0.0, 0.5, 1.0]);
+
+                self.gl.uniform4fv_with_f32_array(self.shader_info.colors.as_ref(), &gradient.stops.iter().flat_map(|s| [s.r, s.g, s.b, s.a].into_iter()).collect::<Vec<f32>>());
+                self.gl.uniform1fv_with_f32_array(self.shader_info.gradient_stops.as_ref(), &gradient.stops.iter().map(|s| s.position).collect::<Vec<f32>>());
             }
         };
     }
@@ -113,18 +127,70 @@ impl Renderer {
 
 
 pub struct Primitive {
-    pub vertices : Vec<f32>,
+    pub strips : Vec<Triangles>,
     pub fill : Brush
 }
 
+pub struct Triangles {
+    pub vertices : Vec<f32>,
+    pub mode : TrianglesMode,
+}
+
+pub enum TrianglesMode {
+    Strip, Fan
+}
+
 pub struct Gradient {
-    pub coords : Vec<f32>,
-    pub colors : Vec<f32>
+    pub x1 : f32,
+    pub y1 : f32,
+    pub x2 : f32,
+    pub y2 : f32,
+    pub stops : Vec<GradientStop>,
+}
+
+pub struct GradientStop {
+    pub position : f32,
+    pub r : f32,
+    pub g : f32,
+    pub b : f32,
+    pub a : f32,
 }
 
 pub enum Brush {
     COLOR(f32, f32, f32, f32),
     LINEAR_GRADIENT(Gradient),
+}
+
+#[derive(Clone, Copy)]
+pub enum Rotation {
+    Clockwise, CounterClockwise
+}
+
+#[wasm_bindgen]
+#[derive(Clone, Copy)]
+pub struct P {
+    x: f32,
+    y: f32,
+}
+
+
+impl P {
+    pub fn x(&self) -> f32 {
+        self.x
+    }
+
+    pub fn y(&self) -> f32 {
+        self.y
+    }
+
+    pub fn new(x :f32, y : f32) -> P {
+        P{x:x, y: y }
+    }
+}
+
+pub struct Polygon {
+    pub rotation : Rotation,
+    pub points : Vec<P>
 }
 
 
@@ -141,3 +207,93 @@ pub fn draw(renderer: &Renderer) {
 
 
 
+
+
+
+
+/**
+ * Tesselates polygon usingear clipping method
+ */
+pub fn tesselate_polygon(polygon : Polygon) -> Vec<Triangles> {
+
+    struct Pos {
+        index : usize,
+        point : P,
+    }
+
+    struct Index {
+        pub index : usize
+    }
+    let mut size = polygon.points.len();
+    let mut index = Index{index: 0};
+    let mut addresses : Vec<usize> = Vec::with_capacity(polygon.points.len());
+    let mut strips : Vec<Triangles> = Vec::new();
+    let mut current : Pos;
+
+    for i in 1..polygon.points.len()-1 {addresses.push(i)};
+    addresses.push(0);
+
+    fn get_next(polygon : &Polygon, addresses: &mut Vec<usize>, index : &mut Index) -> Pos {
+        index.index = addresses[index.index];
+        Pos{index : index.index, point : polygon.points[index.index]}
+    }
+
+    let mut a = get_next(&polygon, &mut addresses, &mut index);
+    let mut b = get_next(&polygon, &mut addresses, &mut index);
+    let mut c = get_next(&polygon, &mut addresses, &mut index);
+    
+    fn is_convex(a : &Pos, b : &Pos, c : &Pos, rotation : &Rotation) -> bool {
+        let d1 = f32::atan2(a.point.x() - b.point.x(), a.point.y() - b.point.y());
+        let d2 = f32::atan2(c.point.x() - b.point.x(), c.point.y() - b.point.y());
+        
+        let d = d2 - d1;
+        
+        match rotation {
+            Rotation::Clockwise => d > PI,
+            Rotation::CounterClockwise => d < PI
+        }
+    }
+    
+    'outer : loop {
+        let convex = is_convex(&a, &b, &c, &polygon.rotation);
+        
+        if convex { // found possible triangle
+            //TODO: check przecięcie z innymi liniami
+            let mut strip : Vec<f32> = Vec::new();
+            strip.push(a.point.x());
+            strip.push(a.point.y());
+            strip.push(b.point.x());
+            strip.push(b.point.y());
+            
+            loop {
+                strip.push(c.point.x());
+                strip.push(c.point.y());
+
+                
+                size -= 1;
+                log(size.to_string().as_str());
+                b = c;
+                c = get_next(&polygon, &mut addresses, &mut index);
+                if (size < 4) {
+                    strip.push(c.point.x());
+                    strip.push(c.point.y());
+                    strips.push(Triangles{vertices : strip, mode : TrianglesMode::Fan});
+                    break 'outer;
+                }
+
+
+                if !is_convex(&a, &b, &c, &polygon.rotation) {break};
+            }
+            log("EEEEyyyeee");
+            strips.push(Triangles{vertices : strip, mode : TrianglesMode::Fan});
+            addresses[a.index] = b.index;
+        } 
+
+        a = b;
+        b = c;
+        c = get_next(&polygon, &mut addresses, &mut index);
+    }
+
+    strips
+
+}

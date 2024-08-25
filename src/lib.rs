@@ -1,8 +1,10 @@
-use std::{collections::HashMap, primitive};
+use std::{collections::HashMap, f32::consts::PI, primitive};
 
 use base::log;
+use js_sys::Math::atan2;
+use num::iter;
 use once_cell::*;
-use renderer::{draw, Gradient, Primitive, Renderer};
+use renderer::{draw, tesselate_polygon, Gradient, GradientStop, Polygon, Primitive, Renderer, Rotation, Triangles, TrianglesMode, P};
 use sync::Lazy;
 use wasm_bindgen::prelude::*;
 use web_sys::{Event, WebGl2RenderingContext};
@@ -107,12 +109,13 @@ pub struct JsPoint {
 }
 
 #[wasm_bindgen]
-pub fn add_primitive(canvas_id : &str, vertices : Vec<f32>, r:f32, g:f32, b:f32, a:f32) {
+pub fn add_primitive(canvas_id : &str, vertices : Vec<f32>, r:f32, g:f32, b:f32, a:f32, typ : &str) {
     let context = get_context(canvas_id);
 
+    let t = if(typ == "fan"){TrianglesMode::Fan}else{TrianglesMode::Strip};
     
     let primitive = Primitive{
-        vertices : vertices,
+        strips : vec![Triangles{vertices: vertices, mode: t}],
         fill: renderer::Brush::COLOR(r, g, b, a)
     };
 
@@ -120,17 +123,48 @@ pub fn add_primitive(canvas_id : &str, vertices : Vec<f32>, r:f32, g:f32, b:f32,
 }
 
 #[wasm_bindgen]
-pub fn add_primitive_gradient(canvas_id : &str, vertices : Vec<f32>, x1:f32, y1:f32, r1:f32, g1:f32, b1:f32, a1:f32, x2:f32, y2:f32, r2:f32, g2:f32, b2:f32, a2:f32) {
+pub fn add_primitive_linear_gradient(canvas_id : &str, vertices : Vec<f32>, x1:f32, y1:f32, x2:f32, y2:f32, stops:Vec<f32>) {
     let context = get_context(canvas_id);
 
+    let mut gradient_stops = Vec::new();
+    for i in (0..stops.len()).skip(4).step_by(5) {
+        gradient_stops.push(GradientStop{
+            position : stops[i-4],
+            r : stops[i-3],
+            g : stops[i-2],
+            b : stops[i-1],
+            a : stops[i-0],
+        });
+    }
     
     let primitive = Primitive{
-        vertices : vertices,
+        strips : vec![Triangles{vertices: vertices, mode: TrianglesMode::Strip}],
         fill: renderer::Brush::LINEAR_GRADIENT(Gradient{
-            coords : vec![x1, y1, x2, y2],
-            colors : vec![r1, g1, b1, a1, r2, g2, b2, a2],
+            x1 : x1,
+            y1 : y1,
+            x2 : x2,
+            y2 : y2,
+            stops : gradient_stops
         })
     };
+
+    context.renderer.add_primitive(primitive);
+}
+
+
+
+
+#[wasm_bindgen]
+pub fn add_polygon(canvas_id : &str, points : Vec<f32>) {
+    let context = get_context(canvas_id);
+
+    let pua = points.iter().step_by(2).zip(points.iter().skip(1).step_by(2)).map(|(a,b)| P::new(*a, *b));
+
+    let polygon = Polygon{points: pua.collect(), rotation : Rotation::CounterClockwise};
+
+    let strips = tesselate_polygon(polygon);
+
+    let primitive = Primitive{strips : strips, fill : renderer::Brush::COLOR(1.0, 1.0, 1.0, 1.0)};
 
     context.renderer.add_primitive(primitive);
 }

@@ -1,22 +1,38 @@
-use std::ops::Bound;
+use std::ops::{self, Bound};
 
+use wasm_bindgen::prelude::*;
 use wasm_bindgen::convert::ReturnWasmAbi;
+use num::Float;
 
-
+#[wasm_bindgen]
 pub struct Point{
-    pub x:f64,
-    pub y:f64
+    pub x: f64,
+    pub y: f64
 }
 
 impl Point {
-    fn x(&self) -> f64 {
+    pub fn x(&self) -> f64 {
         self.x
     }
 
-    fn new(x:f64, y:f64) -> Point {
+    pub fn y(&self) -> f64 {
+        self.y
+    }
+
+    pub fn new(x:f64, y:f64) -> Point {
         Point{x:x,y:y}
     }
 
+
+
+}
+
+impl ops::Add<Point> for Point {
+    type Output = Point;
+
+    fn add(self, p: Point) -> Point {
+        Point::new(self.x + p.x, self.y + p.y)
+    }
 }
 
 

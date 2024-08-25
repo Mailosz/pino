@@ -1,60 +1,9 @@
 use web_sys::{WebGl2RenderingContext, WebGlProgram, WebGlShader, WebGlUniformLocation};
 
 
-const vertex_shader_source : &str = r##"#version 300 es
-            //#pragma debug(on) 
-            // an attribute will receive data from a buffer
-            in vec2 a_pos;
-            uniform vec2 u_res;
+const vertex_shader_source : &str = include_str!("vertex_shader.hlsl");
 
-            in vec2 gradient_coord;
-            out vec4 gradient_stops;
-
-            vec2 normalizuj(in vec2 pos, in vec2 res);
-            vec2 normalizuj(in vec2 pos, in vec2 res) {
-                // convert the position from pixels to 0.0 to 1.0
-                vec2 zeroToOne = pos / res;
-            
-                // convert from 0->1 to 0->2
-                vec2 zeroToTwo = zeroToOne * 2.0;
-            
-                // convert from 0->2 to -1->+1 (clip space)
-                vec2 clipSpace = zeroToTwo - 1.0;
-            
-                return clipSpace * vec2(1, -1);
-            }
-
-
-            void main() {
-                
-                gl_Position = vec4(normalizuj(a_pos, u_res), 0, 1);
-
-                gradient_stops = vec4(normalizuj(gradient_coord, u_res), 0, 1);
-            }
-        "##;
-
-const fragemnt_shader_source : &str = r##"#version 300 es
-            // fragment shaders don't have a default precision so we need
-            // to pick one. mediump is a good default
-            precision highp float;
-
-            uniform uint u_brush_type;
-            uniform vec4 u_color;
-
-            out vec4 out_color;
-
-            void main() {
-                // gl_FragColor is a special variable a fragment shader
-                // is responsible for setting
-                if (u_brush_type == uint(1)) { // solid color
-                    out_color = u_color;
-                } else if (u_brush_type == uint(2)) { // linear gradient
-                    out_color = vec4(1.0, 1.0, 0.2, 1.0);
-                } else {
-                    out_color = vec4(1.0, 0.2, 0.2, 1.0);
-                }
-            }
-        "##;
+const fragemnt_shader_source : &str = include_str!("fragment_shader.hlsl");
 
 pub fn create_vertex_shader(gl : &WebGl2RenderingContext) -> WebGlShader {
     compile_shader(
@@ -128,8 +77,12 @@ pub struct ShaderInfo {
     pub u_color : Option<WebGlUniformLocation>,
     pub u_res : Option<WebGlUniformLocation>,
     pub a_pos : u32,
-    pub gradient_coord : u32,
-    pub u_brush_type : Option<WebGlUniformLocation>
+    pub u_brush_type : Option<WebGlUniformLocation>,
+    pub gradient_start : Option<WebGlUniformLocation>,
+    pub gradient_end : Option<WebGlUniformLocation>,
+    pub colors : Option<WebGlUniformLocation>,
+    pub gradient_stops : Option<WebGlUniformLocation>,
+    pub gradient_stops_count : Option<WebGlUniformLocation>,
 }
 
 pub fn create_shader_program(gl : &WebGl2RenderingContext) -> (WebGlProgram, ShaderInfo) {
@@ -143,8 +96,12 @@ pub fn create_shader_program(gl : &WebGl2RenderingContext) -> (WebGlProgram, Sha
         u_color : gl.get_uniform_location(&program, "u_color"),
         u_res : gl.get_uniform_location(&program, "u_res"),
         a_pos : gl.get_attrib_location(&program, "a_pos") as u32,
-        gradient_coord : gl.get_attrib_location(&program, "gradient_coord") as u32,
         u_brush_type : gl.get_uniform_location(&program, "u_brush_type"),
+        gradient_start : gl.get_uniform_location(&program, "gradient_start"),
+        gradient_end : gl.get_uniform_location(&program, "gradient_end"),
+        colors : gl.get_uniform_location(&program, "colors"),
+        gradient_stops : gl.get_uniform_location(&program, "gradient_stops"),
+        gradient_stops_count : gl.get_uniform_location(&program, "gradient_stops_count"),
     };
 
     (program, shader_info)
