@@ -1,5 +1,6 @@
-use std::ops;
+use std::{cmp, ops};
 
+#[derive(Clone, Copy)]
 pub struct Point{
     pub x: f64,
     pub y: f64
@@ -51,6 +52,25 @@ impl Point {
         Point::new(self.x / len, self.y / len)
     }
 
+    /**
+     * Calculates the dot product between the two points, that is a shadow casted by vector (0,a) on a vector (0,b)
+     */
+    pub fn dot(&self, point : &Point) -> f64 {
+        dot_product(self, point)
+    }
+}
+
+/**
+ * Calculates the dot product between the two points, that is a shadow casted by vector (0,a) on a vector (0,b)
+ */
+pub fn dot_product(a : &Point, b : &Point) -> f64 {
+    a.x * b.x + a.y * b.y
+}
+
+impl cmp::PartialEq for Point {
+    fn eq(&self, other: &Self) -> bool {
+        self.x == other.x && self.y == other.y
+    }
 }
 
 impl ops::Neg for Point {
