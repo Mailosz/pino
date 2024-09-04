@@ -18,6 +18,6 @@ impl Rect {
     }
 
     pub fn to_bounds(&self) -> Bounds {
-        Bounds::new(self.x, self.y, self.x + self.w, self.y + self.h)
+        Bounds::new_fast(self.x, self.y, self.x + self.w, self.y + self.h)
     }
 }

@@ -13,22 +13,25 @@ impl Bounds {
      * Creates new Bounds
      * CAUTION: *r* must be > *l* and *b* must be > *t*
      */
-    pub fn new(l:f64, t:f64, r:f64, b:f64) -> Bounds{
+    pub fn new_fast(l:f64, t:f64, r:f64, b:f64) -> Bounds{
         Bounds{l:l, t:t, r:r, b:b}
     }
 
+    /**
+     * Creates new bounds and ensures that l <= r & t <= b
+     */
     pub fn new_safe(x1:f64,y1:f64,x2:f64,y2:f64) -> Bounds {
         if (x2 < x1) {
             if (y2 < y1) {
-                Bounds{l:x2,t:y2,r:x1,b:y1}
+                Bounds{l:x2, t:y2, r:x1, b:y1}
             } else {
-                Bounds{l:x2,t:y1,r:x1,b:y2}
+                Bounds{l:x2, t:y1, r:x1, b:y2}
             }
         } else {
             if (y2 < y1) {
-                Bounds{l:x1,t:y2,r:x2,b:y1}
+                Bounds{l:x1, t:y2, r:x2, b:y1}
             } else {
-                Bounds{l:x1,t:y1,r:x2,b:y2}
+                Bounds{l:x1, t:y1, r:x2, b:y2}
             }
         }
     }

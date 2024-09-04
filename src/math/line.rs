@@ -57,8 +57,11 @@ impl Line {
             b = self.a.y;
         }
 
-        Bounds::new(l, t, r, b)
+        Bounds::new_fast(l, t, r, b)
     }
+
+
+}
 
     /**
      * Sign of the returned value defines if point is above/on the left the line (+) or below/on the right (-)
@@ -66,7 +69,6 @@ impl Line {
     pub fn line_side(a : Point, b : Point, p : Point) -> f64 {
         (b.x - a.x)*(p.y - a.y) - (b.y - a.y)*(p.x - a.x)
     }
-}
 
     /**
      * Gets t value of a point projected onto a line
