@@ -3,9 +3,10 @@ use std::{borrow::Borrow, f32::consts::PI, primitive, time::Instant};
 use shaders::{ create_shader_program, ShaderInfo};
 use wasm_bindgen::prelude::*;
 use web_sys::{console::{time_end_with_label, time_with_label}, WebGl2RenderingContext, WebGlProgram, WebGlShader};
-use crate::{base::*, point::Point};
+use crate::{base::*, point::Point, Orientation};
 
 mod shaders;
+pub mod tesselation;
 
 pub struct Renderer {
     gl : WebGl2RenderingContext,
@@ -87,6 +88,12 @@ impl Renderer {
             }
             
         }
+        //red lines
+        for strip in &primitive.parts { 
+            self.set_vertices(self.shader_info.a_pos, &strip.vertices, coords_per_vertex as i32);
+            self.set_brush(&Brush::Color(1.0, 0.0, 0.0, 1.0));
+            self.gl.draw_arrays(WebGl2RenderingContext::LINE_LOOP, 0, strip.vertices.len() as i32 / coords_per_vertex);
+        }
     }
 
     pub fn resize_viewport(&self, width : f32, height : f32) {
@@ -161,11 +168,6 @@ pub enum Brush {
     LinearGradient(Gradient),
 }
 
-#[derive(Clone, Copy)]
-pub enum Rotation {
-    Clockwise, CounterClockwise
-}
-
 #[wasm_bindgen]
 #[derive(Clone, Copy)]
 pub struct P {
@@ -184,12 +186,12 @@ impl P {
     }
 
     pub fn new(x :f32, y : f32) -> P {
-        P{x:x, y: y }
+        P{x: x, y: y }
     }
 }
 
 pub struct Polygon {
-    pub rotation : Rotation,
+    pub orientation : Orientation,
     pub points : Vec<P>
 }
 
@@ -212,98 +214,3 @@ pub fn draw(renderer: &Renderer) {
 
 
 
-
-
-
-/**
- * Tesselates polygon usingear clipping method
- */
-pub fn tesselate_polygon(polygon : Polygon) -> Vec<Triangles> {
-
-    struct Pos {
-        index : usize,
-        point : P,
-    }
-
-    struct Index {
-        pub index : usize
-    }
-    let mut size = polygon.points.len();
-    let mut index = Index{index: 0};
-    let mut addresses : Vec<usize> = Vec::with_capacity(polygon.points.len());
-    let mut strips : Vec<Triangles> = Vec::new();
-    let mut current : Pos;
-
-    for i in 1..polygon.points.len() {addresses.push(i)};
-    addresses.push(0);
-
-    fn get_next(polygon : &Polygon, addresses: &mut Vec<usize>, index : &mut Index) -> Pos {
-        index.index = addresses[index.index];
-        Pos{index : index.index, point : polygon.points[index.index]}
-    }
-
-    let mut a = get_next(&polygon, &mut addresses, &mut index);
-    let mut b = get_next(&polygon, &mut addresses, &mut index);
-    let mut c = get_next(&polygon, &mut addresses, &mut index);
-
-    /**
-     * Checks whether angle abc is convex, and if the point c is visible from a (TODO)
-     */
-    fn is_visible(a : &Pos, b : &Pos, c : &Pos, rotation : &Rotation) -> bool {
-        let d1 = f32::atan2(a.point.y() - b.point.y(), a.point.x() - b.point.x());
-        let d2 = f32::atan2(c.point.y() - b.point.y(), c.point.x() - b.point.x());
-
-        let d = d2 - d1;
-        
-        match rotation {
-            Rotation::Clockwise => d > PI,
-            Rotation::CounterClockwise => d < PI
-        };
-        true
-    }
-    
-    'outer : loop {
-        let convex = is_visible(&a, &b, &c, &polygon.rotation);
-        
-        if convex { // found possible triangle
-            //TODO: check przecięcie z innymi liniami
-            let mut strip : Vec<f32> = Vec::new();
-            strip.push(a.point.x());
-            strip.push(a.point.y());
-            strip.push(b.point.x());
-            strip.push(b.point.y());
-            
-
-            loop {
-                strip.push(c.point.x());
-                strip.push(c.point.y());
-
-                
-                size -= 1;
-                b = c;
-                c = get_next(&polygon, &mut addresses, &mut index);
-
-                if (size < 4) {
-
-                    strip.push(c.point.x());
-                    strip.push(c.point.y());
-                    strips.push(Triangles{vertices : strip, mode : TrianglesMode::Fan});
-                    break 'outer;
-                }
-
-
-                if !is_visible(&a, &b, &c, &polygon.rotation) {break};
-            }
-            log("EEEEyyyeee");
-            strips.push(Triangles{vertices : strip, mode : TrianglesMode::Fan});
-            addresses[a.index] = b.index;
-        } 
-        log("Not convex");
-        a = b;
-        b = c;
-        c = get_next(&polygon, &mut addresses, &mut index);
-    }
-
-    strips
-
-}

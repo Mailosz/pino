@@ -93,3 +93,7 @@ impl Line {
             p.distance(&point_on_line(a, b, t))
         }
     }
+
+    pub fn do_lines_intersect() -> bool {
+        true
+    }

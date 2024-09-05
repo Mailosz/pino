@@ -5,7 +5,7 @@ use base::log;
 use js_sys::Math::atan2;
 use num::iter;
 use once_cell::*;
-use renderer::{draw, tesselate_polygon, Gradient, GradientStop, Polygon, Primitive, Renderer, Rotation, Triangles, TrianglesMode, P};
+use renderer::{draw, tesselation::tesselate_polygon, Gradient, GradientStop, Polygon, Primitive, Renderer, Triangles, TrianglesMode, P};
 use sync::Lazy;
 use wasm_bindgen::prelude::*;
 use web_sys::{Event, WebGl2RenderingContext};
@@ -161,9 +161,9 @@ pub fn add_polygon(canvas_id : &str, points : Vec<f32>) {
 
     let pua = points.iter().step_by(2).zip(points.iter().skip(1).step_by(2)).map(|(a,b)| P::new(*a, *b));
 
-    let polygon = Polygon{points: pua.collect(), rotation : Rotation::CounterClockwise};
+    let polygon = Polygon{points: pua.collect(), orientation : Orientation::CounterClockwise};
 
-    let strips = tesselate_polygon(polygon);
+    let strips = tesselate_polygon(&polygon);
 
     let primitive = Primitive{parts : strips, fill : renderer::Brush::Color(1.0, 1.0, 1.0, 1.0)};
 

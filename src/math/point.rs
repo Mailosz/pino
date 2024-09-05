@@ -1,5 +1,7 @@
 use std::{cmp, ops};
 
+use super::Orientation;
+
 #[derive(Clone, Copy)]
 pub struct Point{
     pub x: f64,
@@ -59,6 +61,21 @@ impl Point {
         dot_product(self, point)
     }
 }
+
+/**
+ * Returns orientation of ordered points
+ */
+pub fn points_orientation(a : &Point, b : &Point, c : &Point) -> Orientation
+{ 
+    let orientation = (b.y - a.y) * (c.x - b.x) -  (b.x - a.x) * (c.y - b.y); 
+    if (orientation < 0.0) {
+        Orientation::Clockwise
+    } else if (orientation > 0.0) {
+        Orientation::CounterClockwise
+    } else {
+        Orientation::Colinear
+    }
+} 
 
 /**
  * Calculates the dot product between the two points, that is a shadow casted by vector (0,a) on a vector (0,b)
