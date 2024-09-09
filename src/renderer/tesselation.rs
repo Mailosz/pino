@@ -49,49 +49,67 @@ fn do_intersect(a : &P, b : &P, c : &P, d : &P) -> bool {
     let o3 = get_orientation(c, d, a);
     let o4 = get_orientation(c, d, b);
 
-    log(format!("Orientations {}, {}, {}, {}", o1, o2, o3, o4).as_str());
+    //log(format!("Orientations {}, {}, {}, {}", o1, o2, o3, o4).as_str());
 
     return o1 != o2 && o3 != o4
 }
 
-fn is_visible(start : usize, a : &Pos, b : &Pos, c : &Pos, polygon_orientation : &Orientation, addresses: &Vec<usize>, polygon_points : &Vec<P>, vertices_left : usize) -> bool {
+fn is_visible(a : &Pos, b : &Pos, c : &Pos, polygon_orientation : &Orientation, addresses: &Vec<usize>, polygon_points : &Vec<P>, vertices_left : usize) -> bool {
 
-    log(format!("Compute is visible for {}, {}, {}, {}", start, a.index, b.index, c.index).as_str());
+    //log(format!("Compute is visible for {}, {}, {}", a.index, b.index, c.index).as_str());
 
     if (!is_convex(&a.point, &b.point, &c.point, polygon_orientation)) {
+        //log("111 Not convex");
         return false
     } else {
         let test = Orientation::Clockwise == Orientation::Clockwise;
-        log("BEGIN");
-        log(format!("Start: {}", start).as_str());
+        //log("BEGIN");
         // look for other line segemnts
 
         let mut index = addresses[c.index];
         let mut from = polygon_points[index];
-        log(format!("From {}", index).as_str());
+        //log(format!("From {}", index).as_str());
+        let mut o1 = get_orientation(&a.point, &b.point, &from);
 
         // check if new line is not within the angle (b, c, a)
         if is_convex(&b.point, &c.point, &from, polygon_orientation)
             && is_convex(&from, &c.point, &a.point, polygon_orientation)  {
-            log("Not visible - not convex at the start");
+            //log("Not visible - not convex at the end");
             return false
         }
 
         let mut index = addresses[index];
-        log(format!("To   {}", index).as_str());
+        //log(format!("To   {}", index).as_str());
         let mut to = polygon_points[index];
 
         // test whether any line intersects the new one
         if (vertices_left > 5) {
             loop {
-                if (do_intersect(&a.point, &c.point, &from, &to)) {
-                    log("Not visible - przecinają się");
-                    return false;
+                // check whether the line from, to intersects with the proposed line a,c
+                let o2 = get_orientation(&a.point, &b.point, &to);
+                
+                if (o1 != o2)  {
+                    let o3 = get_orientation(&from, &to, &a.point);
+                    let o4 = get_orientation(&from, &to, &b.point);
+
+                    if (o3 != o4) {
+                        //disregard lines that only touch but not inersect
+                        if (o1 != Orientation::Colinear && o2 != Orientation::Colinear && o3 != Orientation::Colinear && o4 != Orientation::Colinear) 
+                        {
+                            return false;
+                        }
+                    }
                 }
+                o1 = o2;
+
+                // if (do_intersect(&a.point, &c.point, &from, &to)) {
+                //     //log("Not visible - przecinają się");
+                //     return false;
+                // }
                 index = addresses[index];
-                log(format!("Ind  {}", index).as_str());
+                //log(format!("Ind  {}", index).as_str());
                 if (index == a.index) {
-                    log("koniec");
+                    //log("koniec");
                     break;
                 }
                 
@@ -99,18 +117,43 @@ fn is_visible(start : usize, a : &Pos, b : &Pos, c : &Pos, polygon_orientation :
                 to = polygon_points[index];
             }
         } else {
-            log("Less than 5");
+            //log("Less than 5");
         }
         //TODO: this is computed twice - now, and later in inner loop
         // check if new line is not within the angle (b, c, a)
-        if is_convex(&b.point, &c.point, &to, polygon_orientation)
-            && is_convex(&to, &c.point, &a.point, polygon_orientation)  {
-            log("Not visible - not convex at the start");
+        if is_convex(&b.point, &a.point, &to, polygon_orientation)
+            && is_convex(&to, &a.point, &c.point, polygon_orientation)  {
+            // //log(format!("Not visible - not convex at the end ({})", index).as_str());
             return false
         }
         
         return true
     }
+}
+
+fn is_in(a : P, b : P, c : P, d : P) -> bool{
+    return ((c.x > a.x && c.x < b.x) || (c.x > b.x && c.x < a.x)) && ((c.y > a.y && c.y < b.y) || (c.y > b.y && c.y < a.y)) 
+    || ((d.x > a.x && d.x < b.x) || (d.x > b.x && d.x < a.x)) && ((d.y > a.y && d.y < b.y) || (d.y > b.y && d.y < a.y)) 
+}
+
+
+fn get_line_intersection_point(a : P, b : P, c : P, d : P) -> Option<P> {
+
+        let l1_w = b.x - a.x;     
+        let l1_h = b.y - a.y;
+        let l2_w = d.x - c.x;     
+        let l2_h = d.y - c.y;
+        let d_w = a.x - c.x;
+        let d_h = a.y - c.y;
+        
+        let s = (-l1_h * (d_w) + l1_w * (d_h)) / (-l2_w * l1_h + l1_w * l2_h);
+        let t = ( l2_w * (d_h) - l2_h * (d_w)) / (-l2_w * l1_h + l1_w * l2_h);
+    
+        if (s > 0.0 && s < 1.0 && t > 0.0 && t < 1.0)
+        {
+            return Some(P::new(a.x + (t * l1_w), a.y + (t * l1_h)));
+        }
+        return Option::None; // No collision
 }
 
 
@@ -121,8 +164,7 @@ pub fn tesselate_polygon(polygon : &Polygon) -> Vec<Triangles> {
 
 
     let mut vertices_left = polygon.points.len();
-    let mut start = 0;
-    let mut index = Index{index: start};
+    let mut index = Index{index: 0};
     let mut addresses : Vec<usize> = Vec::with_capacity(polygon.points.len());
     let mut strips : Vec<Triangles> = Vec::new();
     let mut current : Pos;
@@ -136,13 +178,13 @@ pub fn tesselate_polygon(polygon : &Polygon) -> Vec<Triangles> {
     let mut c = get_next(&polygon, &mut addresses, &mut index);
 
 
-    
+    let mut count = 0;
     'outer : loop {
-        let visible = is_visible(start, &a, &b, &c, &polygon.orientation, &addresses, &polygon.points, vertices_left);
+        let visible = is_visible(&a, &b, &c, &polygon.orientation, &addresses, &polygon.points, vertices_left);
         
         if visible { // found possible triangle
             //TODO: check przecięcie z innymi liniami
-            log(format!("Visible {}, {}, {}", a.index, b.index, c.index).as_str());
+            //log(format!("Visible {}, {}, {}", a.index, b.index, c.index).as_str());
             let mut strip : Vec<f32> = Vec::new();
             strip.push(a.point.x());
             strip.push(a.point.y());
@@ -164,21 +206,26 @@ pub fn tesselate_polygon(polygon : &Polygon) -> Vec<Triangles> {
                     strip.push(c.point.x());
                     strip.push(c.point.y());
                     strips.push(Triangles{vertices : strip, mode : TrianglesMode::Fan});
-                    log("Finished with FAN");
+                    //log("Finished with FAN");
                     break 'outer;
                 }
 
 
-                if !is_visible(start, &a, &b, &c, &polygon.orientation, &addresses, &polygon.points, vertices_left) {break};
-                log(format!("Visible {}, {}, {}", a.index, b.index, c.index).as_str());
+                if !is_visible(&a, &b, &c, &polygon.orientation, &addresses, &polygon.points, vertices_left) {break};
+                //log(format!("Visible {}, {}, {}", a.index, b.index, c.index).as_str());
             }
-            log(format!("FAN from {} to {}", a.index, b.index).as_str());
+            //log(format!("FAN from {} to {}", a.index, b.index).as_str());
             strips.push(Triangles{vertices : strip, mode : TrianglesMode::Fan});
             addresses[a.index] = b.index;
+            count = 0;
         } else {
-            log(format!("Not visible {}, {}, {}", a.index, b.index, c.index).as_str());
+            count += 1;
+            if (count > vertices_left) {
+                log("EMERGENCY TESSELEATION BREAK!!!");
+                break;
+            }
+            //log(format!("Not visible {}, {}, {}", a.index, b.index, c.index).as_str());
         }
-        start = a.index;
         a = b;
         b = c;
         c = get_next(&polygon, &mut addresses, &mut index);
@@ -190,6 +237,69 @@ pub fn tesselate_polygon(polygon : &Polygon) -> Vec<Triangles> {
 
 
 
-pub fn normalize_polygon(polygon : Polygon) {
+pub fn normalize_polygon(polygon : &mut Polygon) {
+
+
+
+    let mut start = 1;
+
+    loop {
+        let line_start_point = polygon.points[start - 1];
+        let mut index = start + 1;
+        let mut second_line_start = polygon.points[index];
+        loop {
+            index += 1;
+            if (index == polygon.points.len()) {
+                //log(format!("Break in {}", index).as_str());
+
+                let intersection_point = get_line_intersection_point(line_start_point, polygon.points[start], second_line_start, polygon.points[0]);
+
+                match intersection_point {
+                    Some(p) => intersection_found(start, index, p, polygon),
+                    None => ()// //log(format!("Not {}, {}", start, index).as_str())
+                }
+                break;
+            }
+            let second_line_end = polygon.points[index];
+            let intersection_point = get_line_intersection_point(line_start_point, polygon.points[start], second_line_start, second_line_end);
+
+            match intersection_point {
+                Some(p) => intersection_found(start, index, p, polygon),
+                None => ()//alog(format!("Not {}, {}", start, index).as_str())
+            }
+
+            second_line_start = second_line_end;
+        }
+
+        start += 1;
+        if (start + 1 == polygon.points.len()) {
+            // //log(format!("Break out {}", start).as_str());
+            break;
+        }
+        // //log("continue");
+    }
+}
+
+fn intersection_found(first: usize, second: usize, point : P, polygon: &mut Polygon) {
+    
+    //log(format!("Intersection found between segments {} and {} at point {}, {}", first, second, point.x, point.y).as_str());
+    let mut a = first;
+    let mut b = second - 1;
+    loop {
+        let var = polygon.points[b];
+        polygon.points[b] = polygon.points[a];
+        polygon.points[a] = var;
+
+        a += 1;
+        b -= 1;
+
+        if (a >= b) {
+            break;
+        }
+        
+    }
+
+    polygon.points.insert(second, point);
+    polygon.points.insert(first, point);
 
 }

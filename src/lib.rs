@@ -5,11 +5,12 @@ use base::log;
 use js_sys::Math::atan2;
 use num::iter;
 use once_cell::*;
-use renderer::{draw, tesselation::tesselate_polygon, Gradient, GradientStop, Polygon, Primitive, Renderer, Triangles, TrianglesMode, P};
+use renderer::{draw, tesselation::{normalize_polygon, tesselate_polygon}, Gradient, GradientStop, Polygon, Primitive, Renderer, Triangles, TrianglesMode, P};
 use sync::Lazy;
 use wasm_bindgen::prelude::*;
-use web_sys::{Event, WebGl2RenderingContext};
+use web_sys::{console::{time_end_with_label, time_with_label}, Event, WebGl2RenderingContext};
 use crate::math::*;
+use std::fmt::Write; // for write!
 extern crate console_error_panic_hook;
 
 mod base;
@@ -156,14 +157,39 @@ pub fn add_primitive_linear_gradient(canvas_id : &str, vertices : Vec<f32>, x1:f
 
 
 #[wasm_bindgen]
-pub fn add_polygon(canvas_id : &str, points : Vec<f32>) {
+pub fn add_polygon(canvas_id : &str, orientation : &str, points : Vec<f32>) {
     let context = get_context(canvas_id);
 
     let pua = points.iter().step_by(2).zip(points.iter().skip(1).step_by(2)).map(|(a,b)| P::new(*a, *b));
 
-    let polygon = Polygon{points: pua.collect(), orientation : Orientation::CounterClockwise};
+    let o;
+    if (orientation == "clockwise") {
+        o = Orientation::Clockwise
+    } else if (orientation == "counter-clockwise") {
+        o = Orientation::CounterClockwise
+    } else {
+        o = Orientation::Colinear;
+        log("Wrong orientation");
+        return;
+    }
 
+    let mut polygon = Polygon{points: pua.collect(), orientation : o};
+
+    time_with_label("Normalization time");
+    normalize_polygon(&mut polygon);
+    time_end_with_label("Normalization time");
+
+    // print polygon points
+    // let mut str = String::new();
+    // for p in &polygon.points {
+    //      write!(&mut str, "({},{}) ",p.x(), p.y());
+    // }
+   
+    log(&str);
+
+    time_with_label("Tesselation time");
     let strips = tesselate_polygon(&polygon);
+    time_end_with_label("Tesselation time");
 
     let primitive = Primitive{parts : strips, fill : renderer::Brush::Color(1.0, 1.0, 1.0, 1.0)};
 

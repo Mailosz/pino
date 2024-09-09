@@ -21,15 +21,37 @@ impl Point {
         Point{x:x,y:y}
     }
 
-
+    /**
+     * Distance between 0,0 and the point
+     */
     pub fn length(&self) -> f64 {
         f64::sqrt(self.x * self.x + self.y * self.y)
     }
 
+    /**
+     * Distance between 0,0 and the point, squared (without sqrt)
+     */
+    pub fn length_squared(&self) -> f64 {
+        self.x * self.x + self.y * self.y
+    }
+
+    /**
+     * Distance between two points
+     */
     pub fn distance(&self, point : &Point) -> f64 {
         let x = self.x - point.x;
         let y = self.y - point.y;
         f64::sqrt(x * x + y * y)
+    }
+
+    
+    /**
+     * Squared distance between two points (without sqrt)
+     */
+    pub fn distance_squared(&self, point : &Point) -> f64 {
+        let x = self.x - point.x;
+        let y = self.y - point.y;
+        return x * x + y * y
     }
 
     /**

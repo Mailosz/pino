@@ -66,30 +66,73 @@
         ]);
 
 
-//         add_polygon(canvas.id, [
+//         add_polygon(canvas.id, "counter-clockwise", [
 //           400, 400,
-//           350, 450,
-//           400, 500, 
-//           500, 500, 
-//           550, 450, 
-//           500, 400, 
-//           450, 450,
-//           500, 450,
-//           450, 475,
+//           400, 500,
+//           600, 400,
+//           600, 500,
+
 // ]);
 
-        add_polygon(canvas.id, [
-          400, 400,
-          350, 450,
-          400, 500, 
-          500, 500, 
-          550, 450, 
-          500, 400, 
-          600, 300, 
-          600, 400,
-          800, 250,
-          550, 250]);
+          add_polygon(canvas.id, "clockwise", [
+                      500, 500,
+                      1000, 500,
+                      900, 300,
+                      800, 700,
+                      700, 300,
+                      600, 700,
 
+            ]);
+
+
+
+//         add_polygon(canvas.id, "counter-clockwise", [
+//           800, 100,
+//           800, 200,
+//           900, 200,
+//           900, 300,
+//           1000, 300,
+//           1000, 200,
+//           900, 200,
+//           900, 100,
+// ]);
+
+        // add_polygon(canvas.id, [
+        //   400, 400,
+        //   350, 450,
+        //   400, 500, 
+        //   500, 500, 
+        //   550, 450, 
+        //   500, 400, 
+        //   600, 300, 
+        //   600, 400,
+        //   800, 250,
+        //   550, 250]);        
+        
+        
+        // add_polygon(canvas.id, "counter-clockwise", [
+        //   400, 400,
+        //   350, 450,
+        //   400, 500, 
+        //   500, 500, 
+        //   550, 450, 
+        //   500, 400, 
+        //   600, 300, 
+        //   600, 400,
+        //   800, 250,
+        //   550, 250]);
+
+          let vertices = [];
+          let max = 10000;
+          let size = 100;
+          let cx = 500;
+          let cy = 500;
+          for (let i = 0; i < max; i++) {
+            let angle = (i / max) * Math.PI * 2;
+              vertices.push(cx + Math.cos(angle) * size);
+              vertices.push(cy + Math.sin(angle) * size);
+          }
+          add_polygon(canvas.id, "clockwise", vertices);
           
         // add_primitive_linear_gradient(canvas.id, [0, 0, 1, 0, 800, 1, 800, 0, 1, 800, 800,1], 100, 100, 600, 600, [
         //   0,   1, 0, 0, 1, 
