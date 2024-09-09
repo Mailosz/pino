@@ -3,6 +3,8 @@
 // to pick one. mediump is a good default
 precision highp float;
 
+#define PI 3.1415926535897932384626433832795
+#define TAU 6.283185307179586476925286766559
 
 //layout(origin_upper_left) in vec4 gl_FragCoord;
 
@@ -54,6 +56,12 @@ void main() {
         coord = (coord - gradient_start) / (gradient_end - gradient_start);
 
         float t = sqrt((coord.x * coord.x) + (coord.y * coord.y)) / 1.0;
+
+        out_color = compute_gradient_color(t);
+    } else if (u_brush_type == uint(4)) {// conic_gradient 
+        vec2 coord = vec2(gl_FragCoord.x,u_res.y - gl_FragCoord.y);
+
+        float t = mod(atan(coord.y - gradient_start.y, coord.x - gradient_start.x), TAU) / TAU;
 
         out_color = compute_gradient_color(t);
     } else {

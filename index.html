@@ -18,7 +18,7 @@
   <body>
     <canvas id="main-canvas"></canvas>
     <script type="module">
-      import init, { initialize, resize, redraw, add_primitive, add_primitive_linear_gradient, add_polygon } from "./pkg/pino.js";
+      import init, { initialize, resize, redraw, add_polygon, set_linear_gradient, set_solid_color_brush, set_radial_gradient, set_conic_gradient } from "./pkg/pino.js";
       import {CanvasManager, DrawingManager} from "./js/www/js/canvas/main.js";
 
 
@@ -57,13 +57,14 @@
         let cm = new CanvasManager(canvas);
         cm.setDrawingManager(new WebGlDrawingManager());
 
-        add_primitive(canvas.id, [250, 300, 280, 200, 350, 400, 400, 350], 0.6, 0.7, 0.8, 1.0, "strip");
 
-        add_primitive_linear_gradient(canvas.id, [400, 250, 600, 200, 500, 500], 320, 300, 450, 500, [
+        set_linear_gradient(canvas.id, 320, 300, 450, 500, [
           0,   1, 0, 0, 1, 
           0.5, 0, 1, 0, 1,
           1,   0, 0, 1, 1
         ]);
+
+        // set_solid_color_brush(canvas.id, 1, 1, 0, 1);
 
 
 //         add_polygon(canvas.id, "counter-clockwise", [
@@ -81,6 +82,21 @@
                       800, 700,
                       700, 300,
                       600, 700,
+
+            ]);
+
+
+        set_conic_gradient(canvas.id, 300, 300, 600, 500, [
+          0,   1, 1, 0, 1, 
+          0.5, 0, 1, 1, 1,
+          1,   1, 0, 1, 1
+        ]);
+
+        add_polygon(canvas.id, "clockwise", [
+                      200, 200,
+                      500, 200,
+                      500, 500,
+                      200, 500,
 
             ]);
 
@@ -123,7 +139,7 @@
         //   550, 250]);
 
           let vertices = [];
-          let max = 10000;
+          let max = 80;
           let size = 100;
           let cx = 500;
           let cy = 500;
@@ -134,14 +150,6 @@
           }
           add_polygon(canvas.id, "clockwise", vertices);
           
-        // add_primitive_linear_gradient(canvas.id, [0, 0, 1, 0, 800, 1, 800, 0, 1, 800, 800,1], 100, 100, 600, 600, [
-        //   0,   1, 0, 0, 1, 
-        //   0.25,1, 1, 0, 1, 
-        //   0.5, 0, 1, 0, 1,
-        //   0.75,0, 1, 1, 1,
-        //   0.97,   0, 0, 1, 1,
-        //   1.0, 0,0,0,0,
-        // ]);
         
         cm.redraw();
       });

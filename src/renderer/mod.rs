@@ -29,7 +29,6 @@ impl Renderer {
         }
     }
 
-
     pub fn set_vertices(&self, attribute : u32, vertices : &[f32], coords_per_vertex : i32) {
 
         let buffer = self.gl.create_buffer().ok_or("Failed to create buffer").unwrap();
@@ -116,9 +115,26 @@ impl Renderer {
                 self.gl.uniform2f(self.shader_info.gradient_end.as_ref(), gradient.x2, gradient.y2);
 
                 self.gl.uniform1i(self.shader_info.gradient_stops_count.as_ref(), gradient.stops.len() as i32);
-                self.gl.uniform4fv_with_f32_array(self.shader_info.colors.as_ref(), &[1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 1.0]);
-                self.gl.uniform1fv_with_f32_array(self.shader_info.gradient_stops.as_ref(), &[0.0, 0.5, 1.0]);
+                self.gl.uniform4fv_with_f32_array(self.shader_info.colors.as_ref(), &gradient.stops.iter().flat_map(|s| [s.r, s.g, s.b, s.a].into_iter()).collect::<Vec<f32>>());
+                self.gl.uniform1fv_with_f32_array(self.shader_info.gradient_stops.as_ref(), &gradient.stops.iter().map(|s| s.position).collect::<Vec<f32>>());
+            },
+            Brush::RadialGradient(gradient) => {
+                self.gl.uniform1ui(self.shader_info.u_brush_type.as_ref(), 3);
 
+                self.gl.uniform2f(self.shader_info.gradient_start.as_ref(), gradient.x1, gradient.y1);
+                self.gl.uniform2f(self.shader_info.gradient_end.as_ref(), gradient.x2, gradient.y2);
+
+                self.gl.uniform1i(self.shader_info.gradient_stops_count.as_ref(), gradient.stops.len() as i32);
+                self.gl.uniform4fv_with_f32_array(self.shader_info.colors.as_ref(), &gradient.stops.iter().flat_map(|s| [s.r, s.g, s.b, s.a].into_iter()).collect::<Vec<f32>>());
+                self.gl.uniform1fv_with_f32_array(self.shader_info.gradient_stops.as_ref(), &gradient.stops.iter().map(|s| s.position).collect::<Vec<f32>>());
+            },
+            Brush::ConicGradient(gradient) => {
+                self.gl.uniform1ui(self.shader_info.u_brush_type.as_ref(), 4);
+
+                self.gl.uniform2f(self.shader_info.gradient_start.as_ref(), gradient.x1, gradient.y1);
+                self.gl.uniform2f(self.shader_info.gradient_end.as_ref(), gradient.x2, gradient.y2);
+
+                self.gl.uniform1i(self.shader_info.gradient_stops_count.as_ref(), gradient.stops.len() as i32);
                 self.gl.uniform4fv_with_f32_array(self.shader_info.colors.as_ref(), &gradient.stops.iter().flat_map(|s| [s.r, s.g, s.b, s.a].into_iter()).collect::<Vec<f32>>());
                 self.gl.uniform1fv_with_f32_array(self.shader_info.gradient_stops.as_ref(), &gradient.stops.iter().map(|s| s.position).collect::<Vec<f32>>());
             }
@@ -147,6 +163,7 @@ pub enum TrianglesMode {
     Strip, Fan
 }
 
+#[derive(Clone)]
 pub struct Gradient {
     pub x1 : f32,
     pub y1 : f32,
@@ -155,6 +172,7 @@ pub struct Gradient {
     pub stops : Vec<GradientStop>,
 }
 
+#[derive(Clone)]
 pub struct GradientStop {
     pub position : f32,
     pub r : f32,
@@ -163,9 +181,12 @@ pub struct GradientStop {
     pub a : f32,
 }
 
+#[derive(Clone)]
 pub enum Brush {
     Color(f32, f32, f32, f32),
     LinearGradient(Gradient),
+    RadialGradient(Gradient),
+    ConicGradient(Gradient),
 }
 
 #[wasm_bindgen]

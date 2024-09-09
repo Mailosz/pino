@@ -2,10 +2,11 @@
 use std::{collections::HashMap, f32::consts::PI, primitive};
 
 use base::log;
+use data::{Document};
 use js_sys::Math::atan2;
 use num::iter;
 use once_cell::*;
-use renderer::{draw, tesselation::{normalize_polygon, tesselate_polygon}, Gradient, GradientStop, Polygon, Primitive, Renderer, Triangles, TrianglesMode, P};
+use renderer::{draw, tesselation::{normalize_polygon, tesselate_polygon}, Brush, Gradient, GradientStop, Polygon, Primitive, Renderer, Triangles, TrianglesMode, P};
 use sync::Lazy;
 use wasm_bindgen::prelude::*;
 use web_sys::{console::{time_end_with_label, time_with_label}, Event, WebGl2RenderingContext};
@@ -21,7 +22,9 @@ mod renderer;
 
 struct Context {
     id : String,
+    brush : Brush,
     renderer : Renderer,
+    document : Document,
     canvas_element : web_sys::HtmlCanvasElement
 }
 
@@ -48,7 +51,9 @@ pub fn initialize(canvas_id : &str) -> Result<(), JsValue> {
 
     let context = Context{
         id : canvas_id.to_string(),
+        brush : renderer::Brush::Color(1.0, 1.0, 1.0, 1.0),
         renderer : renderer,
+        document : Document::new(),
         canvas_element : canvas
     };
 
@@ -110,24 +115,44 @@ pub struct JsPoint {
     pub y : f64
 }
 
+
 #[wasm_bindgen]
-pub fn add_primitive(canvas_id : &str, vertices : Vec<f32>, r:f32, g:f32, b:f32, a:f32, typ : &str) {
-    let context = get_context(canvas_id);
+pub fn set_solid_color_brush(canvas_id : &str, r:f32, g:f32, b:f32, a:f32) {
 
-    let t = if(typ == "fan"){TrianglesMode::Fan}else{TrianglesMode::Strip};
+    let brush = renderer::Brush::Color(r, g, b, a);
+
+    change_brush(canvas_id, brush);
     
-    let primitive = Primitive{
-        parts : vec![Triangles{vertices: vertices, mode: t}],
-        fill: renderer::Brush::Color(r, g, b, a)
-    };
-
-    context.renderer.add_primitive(primitive);
 }
 
-#[wasm_bindgen]
-pub fn add_primitive_linear_gradient(canvas_id : &str, vertices : Vec<f32>, x1:f32, y1:f32, x2:f32, y2:f32, stops:Vec<f32>) {
+pub fn change_brush(canvas_id : &str, brush : Brush) {
     let context = get_context(canvas_id);
 
+    context.brush = brush;
+}
+
+
+
+
+#[wasm_bindgen]
+pub fn set_linear_gradient(canvas_id : &str, x1:f32, y1:f32, x2:f32, y2:f32, stops:Vec<f32>) {
+    let context = get_context(canvas_id);
+
+    let gradient_stops: Vec<GradientStop> = get_gradient_stops(stops);
+    
+    let brush = renderer::Brush::LinearGradient(Gradient{
+        x1 : x1,
+        y1 : y1,
+        x2 : x2,
+        y2 : y2,
+        stops : gradient_stops
+    });
+
+
+    change_brush(canvas_id, brush)
+}
+
+pub fn get_gradient_stops(stops:Vec<f32>) -> Vec<GradientStop>  {
     let mut gradient_stops = Vec::new();
     for i in (0..stops.len()).skip(4).step_by(5) {
         gradient_stops.push(GradientStop{
@@ -138,27 +163,50 @@ pub fn add_primitive_linear_gradient(canvas_id : &str, vertices : Vec<f32>, x1:f
             a : stops[i-0],
         });
     }
-    
-    let primitive = Primitive{
-        parts : vec![Triangles{vertices: vertices, mode: TrianglesMode::Strip}],
-        fill: renderer::Brush::LinearGradient(Gradient{
-            x1 : x1,
-            y1 : y1,
-            x2 : x2,
-            y2 : y2,
-            stops : gradient_stops
-        })
-    };
-
-    context.renderer.add_primitive(primitive);
+    return gradient_stops;
 }
 
+#[wasm_bindgen]
+pub fn set_radial_gradient(canvas_id : &str, x1:f32, y1:f32, x2:f32, y2:f32, stops:Vec<f32>) {
+    let context = get_context(canvas_id);
+
+    let gradient_stops: Vec<GradientStop> = get_gradient_stops(stops);
+    
+    let brush = renderer::Brush::RadialGradient(Gradient{
+        x1 : x1,
+        y1 : y1,
+        x2 : x2,
+        y2 : y2,
+        stops : gradient_stops
+    });
+
+
+    change_brush(canvas_id, brush)
+}
+
+#[wasm_bindgen]
+pub fn set_conic_gradient(canvas_id : &str, x1:f32, y1:f32, x2:f32, y2:f32, stops:Vec<f32>) {
+    let context = get_context(canvas_id);
+
+    let gradient_stops: Vec<GradientStop> = get_gradient_stops(stops);
+    
+    let brush = renderer::Brush::ConicGradient(Gradient{
+        x1 : x1,
+        y1 : y1,
+        x2 : x2,
+        y2 : y2,
+        stops : gradient_stops
+    });
+
+
+    change_brush(canvas_id, brush)
+}
 
 
 
 #[wasm_bindgen]
 pub fn add_polygon(canvas_id : &str, orientation : &str, points : Vec<f32>) {
-    let context = get_context(canvas_id);
+    let context: &mut Context = get_context(canvas_id);
 
     let pua = points.iter().step_by(2).zip(points.iter().skip(1).step_by(2)).map(|(a,b)| P::new(*a, *b));
 
@@ -169,8 +217,7 @@ pub fn add_polygon(canvas_id : &str, orientation : &str, points : Vec<f32>) {
         o = Orientation::CounterClockwise
     } else {
         o = Orientation::Colinear;
-        log("Wrong orientation");
-        return;
+        panic!("Wrong orientation");
     }
 
     let mut polygon = Polygon{points: pua.collect(), orientation : o};
@@ -185,13 +232,13 @@ pub fn add_polygon(canvas_id : &str, orientation : &str, points : Vec<f32>) {
     //      write!(&mut str, "({},{}) ",p.x(), p.y());
     // }
    
-    log(&str);
+    // log(&str);
 
     time_with_label("Tesselation time");
     let strips = tesselate_polygon(&polygon);
     time_end_with_label("Tesselation time");
 
-    let primitive = Primitive{parts : strips, fill : renderer::Brush::Color(1.0, 1.0, 1.0, 1.0)};
+    let primitive = Primitive{parts : strips, fill : context.brush.clone()};
 
     context.renderer.add_primitive(primitive);
 }
