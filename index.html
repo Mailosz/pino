@@ -27,6 +27,8 @@
 
         constructor() {
           super();
+          this.zoom = 1;
+          this.scroll = {x: 0, y: 0};
         }
 
         resize(width, height) {
@@ -42,7 +44,22 @@
         }
 
         zoomBy(factor, origin) {
-            throw "zoomBy not implemented";
+            let oldzoom = this.zoom;
+            this.zoom *= factor
+            this.zoom = Math.max(Math.min(2,this.zoom),0.5);
+            factor = this.zoom / oldzoom;
+            console.log("Zoom factor " + this.zoom);
+
+            this.scroll.x += (origin.x - this.scroll.x) * (1 - factor);
+            this.scroll.y += (origin.y - this.scroll.y) * (1 - factor);
+
+            set_transform(this.cm.canvasElement.id, 
+              this.zoom, 0, this.scroll.x,
+              0, this.zoom, this.scroll.y,
+              0, 0, 1,
+            )
+            
+            this.redraw();
         }
 
 
