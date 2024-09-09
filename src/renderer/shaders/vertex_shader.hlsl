@@ -3,6 +3,7 @@
 // an attribute will receive data from a buffer
 in vec2 a_pos;
 uniform vec2 u_res;
+uniform mat3 transform;
 
 in vec2 gradient_coord;
 
@@ -22,7 +23,8 @@ vec2 normalizuj(in vec2 pos, in vec2 res) {
 
 
 void main() {
+
     
-    gl_Position = vec4(normalizuj(a_pos, u_res), 0, 1);
+    gl_Position = vec4(normalizuj((vec3(a_pos,1) * transform).xy, u_res), 0, 1);
 
 }

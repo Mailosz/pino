@@ -3,7 +3,7 @@ use std::{borrow::Borrow, f32::consts::PI, primitive, time::Instant};
 use shaders::{ create_shader_program, ShaderInfo};
 use wasm_bindgen::prelude::*;
 use web_sys::{console::{time_end_with_label, time_with_label}, WebGl2RenderingContext, WebGlProgram, WebGlShader};
-use crate::{base::*, point::Point, Orientation};
+use crate::{base::*, matrix::Matrix3x3, point::Point, Orientation};
 
 mod shaders;
 pub mod tesselation;
@@ -21,12 +21,16 @@ impl Renderer {
         let (program, shader_info) = create_shader_program(&gl);
         gl.use_program(Some(&program));
 
-        Renderer{
+        let renderer = Renderer{
             gl,
             program : program,
             primitives : vec![Primitive{parts : vec![Triangles{vertices:vec![10.0, 30.0, 170.0, 30.0, 100.0, 170.0], mode: TrianglesMode::Strip}], fill: Brush::Color(0.2, 0.7, 0.5, 1.0)}],
             shader_info : shader_info
-        }
+        };
+
+        renderer.set_transform(Matrix3x3::identity());
+
+        return renderer;
     }
 
     pub fn set_vertices(&self, attribute : u32, vertices : &[f32], coords_per_vertex : i32) {
@@ -139,6 +143,10 @@ impl Renderer {
                 self.gl.uniform1fv_with_f32_array(self.shader_info.gradient_stops.as_ref(), &gradient.stops.iter().map(|s| s.position).collect::<Vec<f32>>());
             }
         };
+    }
+
+    pub fn set_transform(&self, matrix : Matrix3x3) {
+        self.gl.uniform_matrix3fv_with_f32_array(self.shader_info.transform.as_ref(), false, &matrix.data())
     }
 
     pub fn add_primitive(&mut self, primitive : Primitive) {

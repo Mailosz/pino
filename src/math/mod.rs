@@ -11,6 +11,7 @@ pub mod rect;
 pub mod line;
 pub mod point;
 pub mod curves;
+pub mod matrix;
 
 
 #[derive(Clone, Copy, PartialEq)]

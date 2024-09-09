@@ -4,6 +4,7 @@ use std::{collections::HashMap, f32::consts::PI, primitive};
 use base::log;
 use data::{Document};
 use js_sys::Math::atan2;
+use matrix::Matrix3x3;
 use num::iter;
 use once_cell::*;
 use renderer::{draw, tesselation::{normalize_polygon, tesselate_polygon}, Brush, Gradient, GradientStop, Polygon, Primitive, Renderer, Triangles, TrianglesMode, P};
@@ -241,4 +242,15 @@ pub fn add_polygon(canvas_id : &str, orientation : &str, points : Vec<f32>) {
     let primitive = Primitive{parts : strips, fill : context.brush.clone()};
 
     context.renderer.add_primitive(primitive);
+}
+
+
+#[wasm_bindgen]
+pub fn set_transform(canvas_id : &str, c11 : f32, c12 : f32, c13 : f32, c21 : f32, c22 : f32, c23 : f32, c31 : f32, c32 : f32, c33 : f32) {
+    let context: &mut Context = get_context(canvas_id);
+
+    let transform_matrix = Matrix3x3::new(c11, c12, c13, c21, c22, c23, c31, c32, c33);
+
+    context.renderer.set_transform(transform_matrix);
+    
 }
