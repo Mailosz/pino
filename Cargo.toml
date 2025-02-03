@@ -31,6 +31,9 @@ features = [
   'WebGl2RenderingContext',
   'WebGlProgram',
   'WebGlShader',
+  'WebGlTexture',
+  'WebGlFramebuffer',
+  'HtmlImageElement',
   'Window',
   'console',
 ]

@@ -1,5 +1,6 @@
 use super::{point::Point, rect::Rect};
 
+#[derive(Clone)]
 pub struct Bounds {
     l:f64,
     r:f64,
@@ -8,6 +9,22 @@ pub struct Bounds {
 }
 
 impl Bounds {
+
+    pub fn l(&self) -> f64 {
+        return self.l;
+    }
+
+    pub fn r(&self) -> f64 {
+        return self.r;
+    }
+
+    pub fn t(&self) -> f64 {
+        return self.t;
+    }
+
+    pub fn b(&self) -> f64 {
+        return self.b;
+    }
 
     /**
      * Creates new Bounds

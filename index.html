@@ -18,8 +18,9 @@
   <body>
     <canvas id="main-canvas"></canvas>
     <script type="module">
-      import init, { initialize, resize, redraw, add_polygon, set_linear_gradient, set_solid_color_brush, set_radial_gradient, set_conic_gradient, set_transform } from "./pkg/pino.js";
-      import {CanvasManager, DrawingManager} from "./js/www/js/canvas/main.js";
+      import init, * as pino from "./pkg/pino.js";
+      import {CanvasManager, DrawingManager, InputManager} from "./js/www/js/canvas/main.js";
+      import {ScrollManipulation} from "./js/www/js/canvas/InputManager.js";
 
 
       class WebGlDrawingManager extends DrawingManager {
@@ -32,30 +33,33 @@
         }
 
         resize(width, height) {
-            resize(this.cm.canvasElement.id, width, height);
-            redraw(this.cm.canvasElement.id);
+          pino.resize(this.cm.canvasElement.id, width, height);
+          pino.redraw(this.cm.canvasElement.id);
         }
 
         /**
          * Called automatically before first draw
          */
         prepare() {
-          initialize(this.cm.canvasElement.id);
+          pino.initialize(this.cm.canvasElement.id);
         }
 
-        zoomBy(factor, origin) {
-            let oldzoom = this.zoom;
-            this.zoom *= factor
-            this.zoom = Math.max(Math.min(2,this.zoom),0.5);
-            factor = this.zoom / oldzoom;
-            console.log("Zoom factor " + this.zoom);
+        updateViewport(viewport) {
+            // let oldzoom = this.zoom;
+            // this.zoom *= factor
+            // this.zoom = Math.max(Math.min(2,this.zoom),0.5);
+            // factor = this.zoom / oldzoom;
+            // console.log("Zoom factor " + this.zoom);
 
-            this.scroll.x += (origin.x - this.scroll.x) * (1 - factor);
-            this.scroll.y += (origin.y - this.scroll.y) * (1 - factor);
+            // this.scroll.x += (origin.x - this.scroll.x) * (1 - factor);
+            // this.scroll.y += (origin.y - this.scroll.y) * (1 - factor);
 
-            set_transform(this.cm.canvasElement.id, 
-              this.zoom, 0, this.scroll.x,
-              0, this.zoom, this.scroll.y,
+            const zoomX = this.cm.width / viewport.w;
+            const zoomY = this.cm.height / viewport.h;
+          
+            pino.set_transform(this.cm.canvasElement.id, 
+              zoomX, 0, -viewport.x,
+              0, zoomY, -viewport.y,
               0, 0, 1,
             )
             
@@ -63,9 +67,67 @@
         }
 
 
-        redraw() {
-          redraw(this.cm.canvasElement.id);
+        redraw(rect) {
+
+
+          pino.redraw(this.cm.canvasElement.id);
         }
+      }
+
+      class ScrollInputManager extends InputManager {
+        constructor() {
+          super();
+          this.interaction = null;
+          /** @type {CanvasManager} */
+          this.cm = null;
+      }
+
+
+      /**
+       * Single click action (pointer pressed and quickly released without moving)
+       * @param {PointerData} pointer 
+       */
+      click(pointer) {
+          if (pointer.consecutiveClickCount == 0) {
+              this.cm.drawing.click = {x: pointer.x, y: pointer.y};
+              this.cm.redraw();
+          } else {
+              console.log(pointer.consecutiveClickCount)
+              this.cm.drawing.dbClick = {x: pointer.x, y: pointer.y};
+              this.cm.redraw();
+          }
+
+      }
+
+      /**
+       * Alternative click action (e.g. right mouse button)
+       * @param {PointerData} pointer 
+       */
+      alternativeClick(pointer) {
+          this.cm.drawing.altClick = {x: pointer.x, y: pointer.y};
+          this.cm.redraw();
+      }
+
+      /**
+       * Pointer moved over canvas without contact (e.g. mouse hover)
+       * @param {PointerData} data 
+       */;
+      hover(pointer) {
+          this.cm.drawing.mouse = {x: pointer.x, y: pointer.y};
+          this.cm.redraw();
+      }
+
+      /**
+       * Pointer pressed and moved - manipulation starts
+       * @param {PointerData} pointer 
+       * @returns {Manipulation} A manipulation object that manages further inputs or null.
+       */
+      beginManipulation(pointer) {
+          if (pointer.button == 1) {
+              return new ScrollManipulation(this.cm, pointer);
+          }
+
+      }
       }
 
       init().then(() => {
@@ -73,9 +135,11 @@
         console.log(canvas.id);
         let cm = new CanvasManager(canvas);
         cm.setDrawingManager(new WebGlDrawingManager());
+        cm.setInputManager(new ScrollInputManager());
+        
 
 
-        set_linear_gradient(canvas.id, 320, 300, 450, 500, [
+        pino.set_linear_gradient(canvas.id, 520, 500, 850, 900, [
           0,   1, 0, 0, 1, 
           0.5, 0, 1, 0, 1,
           1,   0, 0, 1, 1
@@ -92,7 +156,7 @@
 
 // ]);
 
-          add_polygon(canvas.id, "clockwise", [
+          pino.add_polygon(canvas.id, "clockwise", [
                       500, 500,
                       1000, 500,
                       900, 300,
@@ -103,13 +167,13 @@
             ]);
 
 
-        set_conic_gradient(canvas.id, 300, 300, 600, 500, [
+            pino.set_conic_gradient(canvas.id, 300, 300, 600, 500, [
           0,   1, 1, 0, 1, 
           0.5, 0, 1, 1, 1,
           1,   1, 0, 1, 1
         ]);
 
-        add_polygon(canvas.id, "clockwise", [
+        pino.add_polygon(canvas.id, "clockwise", [
                       200, 200,
                       500, 200,
                       500, 500,
@@ -118,6 +182,21 @@
             ]);
 
 
+          // var image = new Image();
+          // image.src = "img/alert.png";
+          // image.addEventListener('load', function() {
+          //   // Now that the image has loaded make copy it to the texture.
+          //   pino.set_image_brush(canvas.id, image);
+
+          //   pino.add_polygon(canvas.id, "clockwise", [
+          //     200, 200,
+          //     800, 200,
+          //     800, 800,
+          //     200, 800
+          //   ]);
+
+          //   cm.redraw();
+          // }); 
 
 //         add_polygon(canvas.id, "counter-clockwise", [
 //           800, 100,
@@ -165,10 +244,10 @@
             vertices.push(cx + Math.cos(angle) * size);
             vertices.push(cy + Math.sin(angle) * size);
         }
-        add_polygon(canvas.id, "clockwise", vertices);
+        pino.add_polygon(canvas.id, "clockwise", vertices);
           
 
-        set_transform(canvas.id, 
+        pino.set_transform(canvas.id, 
           1, 0, 0,
           0, 1, 0,
           0, 0, 1,

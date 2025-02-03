@@ -7,7 +7,7 @@ use js_sys::Math::atan2;
 use matrix::Matrix3x3;
 use num::iter;
 use once_cell::*;
-use renderer::{draw, tesselation::{normalize_polygon, tesselate_polygon}, Brush, Gradient, GradientStop, Polygon, Primitive, Renderer, Triangles, TrianglesMode, P};
+use renderer::{draw, tesselation::{normalize_polygon, tesselate_polygon}, Brush, Gradient, GradientStop, ImageData, Polygon, Primitive, Renderer, Triangles, TrianglesMode, P};
 use sync::Lazy;
 use wasm_bindgen::prelude::*;
 use web_sys::{console::{time_end_with_label, time_with_label}, Event, WebGl2RenderingContext};
@@ -67,22 +67,14 @@ pub fn initialize(canvas_id : &str) -> Result<(), JsValue> {
 }
 
 #[wasm_bindgen]
-pub fn resize(canvas_id : &str, width : u32, height : u32) -> Result<(), JsValue> {
+pub fn resize(canvas_id : &str, width : i32, height : i32) -> Result<(), JsValue> {
 
-    unsafe {
-        let option = CONTEXTS.get(canvas_id);
+    let context = get_context(canvas_id);
 
-        match option {
-            Some(context) => {
-                context.renderer.resize_viewport(width as f32, height as f32);
+    context.renderer.resize_viewport(width, height);
 
-                context.canvas_element.set_width(width);
-                context.canvas_element.set_height(height);
-            },
-            None => ()
-        }
-
-    }
+    context.canvas_element.set_width(width as u32);
+    context.canvas_element.set_height(height as u32);
 
 
     Ok(())
@@ -203,6 +195,15 @@ pub fn set_conic_gradient(canvas_id : &str, x1:f32, y1:f32, x2:f32, y2:f32, stop
     change_brush(canvas_id, brush)
 }
 
+
+#[wasm_bindgen]
+pub fn set_image_brush(canvas_id : &str, image : web_sys::HtmlImageElement) {
+    let context = get_context(canvas_id);
+
+    let brush = renderer::Brush::ImageBrush(context.renderer.create_image_brush(image));
+
+    change_brush(canvas_id, brush);
+}
 
 
 #[wasm_bindgen]

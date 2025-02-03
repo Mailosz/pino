@@ -1,5 +1,6 @@
 use super::bounds::Bounds;
 
+#[derive(Clone)]
 pub struct Rect {
     x:f64,
     y:f64,
