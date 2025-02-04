@@ -2,8 +2,8 @@ use std::{borrow::Borrow, f32::consts::PI, primitive, time::Instant};
 
 use shaders::{ create_shader_program, ShaderInfo};
 use wasm_bindgen::prelude::*;
-use web_sys::{console::{time_end_with_label, time_with_label}, HtmlImageElement, WebGl2RenderingContext, WebGlProgram, WebGlShader};
-use crate::{base::*, bounds::Bounds, matrix::Matrix3x3, point::Point, Orientation};
+use web_sys::{console::{self, time_end_with_label, time_with_label}, HtmlImageElement, WebGl2RenderingContext, WebGlProgram, WebGlShader};
+use crate::{base::*, bounds::Bounds, math::rect::Rect, matrix::Matrix3x3, point::Point, Orientation};
 
 mod shaders;
 pub mod tesselation;
@@ -13,16 +13,23 @@ pub struct Renderer {
     program : WebGlProgram,
     primitives : Vec<Primitive>,
     shader_info : ShaderInfo,
-    main_framebuffer : FramebufferData,
+    main_viewport : ViewportData,
     width : i32,
     height: i32
 }
+
+struct ViewportData {
+    viewport: Rect,
+    framebuffer: FramebufferData
+}
+
 
 struct FramebufferData {
     framebuffer : Option<web_sys::WebGlFramebuffer>,
     texture : Option<web_sys::WebGlTexture>,
     width : i32,
     height: i32,
+    drawn : bool,
 }
 
 impl Renderer {
@@ -38,7 +45,7 @@ impl Renderer {
             program : program,
             primitives : vec![Primitive{parts : vec![Triangles{vertices:vec![10.0, 30.0, 170.0, 30.0, 100.0, 170.0], mode: TrianglesMode::Strip}], fill: Brush::Color(0.2, 0.7, 0.5, 1.0)}],
             shader_info : shader_info,
-            main_framebuffer : FramebufferData{framebuffer: Option::None, texture : Option::None, width: 1, height: 1},
+            main_viewport : ViewportData{viewport: Rect::new(0.0, 0.0, 1.0, 1.0), framebuffer:FramebufferData{framebuffer: Option::None, texture : Option::None, width: 1, height: 1, drawn: false}},
             width: 1,
             height: 1
         };
@@ -79,12 +86,14 @@ impl Renderer {
             0, // must be 0
             internal_format, // srcFormat
             WebGl2RenderingContext::UNSIGNED_BYTE, // srcType
-            &image // data is null - we will render into it
+            &image // copy pixels from image
             );
 
+        self.gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
+
         return ImageData{
-            viewport: Bounds::new_fast( 150.0, 50.0, image.width() as f64, image.height() as f64),
-            image : image,
+            viewport: Bounds::new_fast( 0.0,0.0, image.width() as f64, image.height() as f64),
+            image : Some(image),
             texture : texture,
         };
 
@@ -114,8 +123,10 @@ impl Renderer {
         //attach texture to framebuffer
         let level : i32 = 0; // Dont know what's this
         self.gl.framebuffer_texture_2d(WebGl2RenderingContext::FRAMEBUFFER, WebGl2RenderingContext::COLOR_ATTACHMENT0, WebGl2RenderingContext::TEXTURE_2D, texture.as_ref(), level);
+        
+        self.gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
         //
-        return FramebufferData{framebuffer: framebuffer, texture : texture, width: width, height : height};
+        return FramebufferData{framebuffer: framebuffer, texture : texture, width: width, height : height, drawn: false};
     }
 
     pub fn set_vertices(&self, attribute : u32, vertices : &[f32], coords_per_vertex : i32) {
@@ -184,15 +195,37 @@ impl Renderer {
         }
     }
 
+    fn draw_framebuffer(&self, framebuffer_data : &FramebufferData) {
+
+
+        let width = framebuffer_data.width as f32;
+        let height = framebuffer_data.height as f32;
+
+        let vertices : [f32; 8] = [width, height, 0.0, height, 0.0, 0.0, width, 0.0];
+
+        // SET TEXTURE 
+        self.set_texture_brush(
+            framebuffer_data.texture.as_ref(), 
+            &Bounds::new_fast(0.0, 0.0, width as f64, height as f64), 
+            &Matrix3x3::identity(), 
+            WebGl2RenderingContext::CLAMP_TO_EDGE, 
+            WebGl2RenderingContext::CLAMP_TO_EDGE);       
+
+        self.set_vertices(self.shader_info.a_pos, &vertices, 2 as i32);
+        self.gl.draw_arrays(WebGl2RenderingContext::TRIANGLE_FAN, 0, 4 as i32);
+
+        self.gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
+    }
+
     pub fn resize_viewport(&mut self, width : i32, height : i32) {
 
         self.width = width;
         self.height = height;
 
         // resize framebuffer
-        self.gl.delete_framebuffer(self.main_framebuffer.framebuffer.as_ref());
-        self.gl.delete_texture(self.main_framebuffer.texture.as_ref());
-        self.main_framebuffer = self.create_texture_framebuffer(width, height);
+        self.gl.delete_framebuffer(self.main_viewport.framebuffer.framebuffer.as_ref());
+        self.gl.delete_texture(self.main_viewport.framebuffer.texture.as_ref());
+        self.main_viewport.framebuffer = self.create_texture_framebuffer(width, height);
         //
 
         // set resolution for a shader
@@ -239,18 +272,23 @@ impl Renderer {
                 self.gl.uniform1fv_with_f32_array(self.shader_info.gradient_stops.as_ref(), &gradient.stops.iter().map(|s| s.position).collect::<Vec<f32>>());
             },
             Brush::ImageBrush(image_data) => {
-                self.gl.uniform1ui(self.shader_info.u_brush_type.as_ref(), 5);
-                // self.gl.active_texture(WebGl2RenderingContext::TEXTURE0);
-                self.gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, image_data.texture.as_ref());
-                self.gl.uniform2f(self.shader_info.brush_start.as_ref(), image_data.viewport.l() as f32 , image_data.viewport.t() as f32);
-                self.gl.uniform2f(self.shader_info.brush_end.as_ref(), image_data.viewport.r() as f32 , image_data.viewport.b() as f32);
-                self.gl.generate_mipmap(WebGl2RenderingContext::TEXTURE_2D);
-                self.gl.uniform_matrix3fv_with_f32_array(self.shader_info.texture_transform.as_ref(), false, &Matrix3x3::identity().data());
-                self.gl.tex_parameteri(WebGl2RenderingContext::TEXTURE_2D, WebGl2RenderingContext::TEXTURE_WRAP_S, WebGl2RenderingContext::MIRRORED_REPEAT as i32);
-                self.gl.tex_parameteri(WebGl2RenderingContext::TEXTURE_2D, WebGl2RenderingContext::TEXTURE_WRAP_T, WebGl2RenderingContext::MIRRORED_REPEAT as i32);
-            
+                self.set_texture_brush(image_data.texture.as_ref(), &image_data.viewport, &Matrix3x3::identity(), WebGl2RenderingContext::MIRRORED_REPEAT, WebGl2RenderingContext::MIRRORED_REPEAT);             
             }
         };
+    }
+    
+    fn set_texture_brush(&self, texture : Option<&web_sys::WebGlTexture>, source_bounds : &Bounds, texture_transform : &Matrix3x3, wrap_x : u32, wrap_y : u32) {
+        self.gl.uniform1ui(self.shader_info.u_brush_type.as_ref(), 5);
+        self.gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, texture);
+        // self.gl.active_texture(WebGl2RenderingContext::TEXTURE0);
+        self.gl.uniform2f(self.shader_info.brush_start.as_ref(), source_bounds.l() as f32 , source_bounds.t() as f32);
+        self.gl.uniform2f(self.shader_info.brush_end.as_ref(), source_bounds.r() as f32 , source_bounds.b() as f32);
+        self.gl.generate_mipmap(WebGl2RenderingContext::TEXTURE_2D);
+
+        self.gl.uniform_matrix3fv_with_f32_array(self.shader_info.texture_transform.as_ref(), false, &texture_transform.data());
+        self.gl.tex_parameteri(WebGl2RenderingContext::TEXTURE_2D, WebGl2RenderingContext::TEXTURE_WRAP_S, wrap_x as i32);
+        self.gl.tex_parameteri(WebGl2RenderingContext::TEXTURE_2D, WebGl2RenderingContext::TEXTURE_WRAP_T, wrap_y as i32);
+
     }
 
     pub fn set_transform(&self, matrix : Matrix3x3) {
@@ -259,6 +297,29 @@ impl Renderer {
 
     pub fn add_primitive(&mut self, primitive : Primitive) {
         self.primitives.push(primitive);
+    }
+
+    pub fn redraw_viewport(&mut self, viewport : Rect) {
+        self.set_framebuffer(&self.main_viewport.framebuffer);
+
+        let zoomX = self.width as f32 / viewport.w() as f32;
+        let zoomY = self.height as f32 / viewport.h() as f32;
+    
+        self.set_transform(Matrix3x3::new(
+            zoomY, 0.0, -viewport.y() as f32 * zoomY,
+            0.0, zoomX, -viewport.x() as f32 * zoomX,
+            0.0, 0.0, 1.0
+        ));
+        
+        self.gl.clear_color(0.0, 0.0, 0.2, 1.0);
+        self.gl.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
+        
+        for primitive in self.primitives.iter() {
+            self.draw_primitive(primitive);
+        }
+        
+        self.main_viewport.framebuffer.drawn = true;
+        self.main_viewport.viewport = viewport;
     }
 
 }
@@ -308,7 +369,7 @@ pub enum Brush {
 
 #[derive(Clone)]
 pub struct ImageData {
-    image : HtmlImageElement,
+    image : Option<HtmlImageElement>,
     texture : Option<web_sys::WebGlTexture>,
     viewport : Bounds,
 }
@@ -342,29 +403,56 @@ pub struct Polygon {
 }
 
 
-pub fn draw(renderer: &Renderer) {
+pub fn redraw_viewport(renderer: &mut Renderer, viewport : Rect ) {
+
+
+    renderer.redraw_viewport(viewport);
+
+}
+
+pub fn show_viewport(renderer: &mut Renderer, viewport : Rect ) {
+
+    if (!renderer.main_viewport.framebuffer.drawn) {
+        renderer.redraw_viewport(viewport.clone());
+    }
+
+    renderer.reset_framebuffer();
+    renderer.gl.clear_color(0.6, 0.7, 0.8, 1.0);
+    renderer.gl.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
+
+    let zoomX = renderer.main_viewport.viewport.w() / viewport.w();
+    let zoomY = renderer.main_viewport.viewport.h() / viewport.h();
+    let offsetX = (renderer.main_viewport.viewport.x() - viewport.x()) / (viewport.w() / renderer.width as f64);
+    let offsetY = (renderer.main_viewport.viewport.y() - viewport.y()) / (viewport.h() / renderer.height as f64);
+
+    // scrollX = this.viewport.x - (origin.x - this.viewport.x) * ((zoomX) - 1);
+
+
+    renderer.set_transform(Matrix3x3::new(
+        zoomY as f32, 0.0, offsetY as f32,
+        0.0, zoomX as f32, offsetX as f32,
+        0.0, 0.0, 1.0
+    ));
+
+
+    renderer.draw_framebuffer(&renderer.main_viewport.framebuffer);
+
+}
+
+pub fn draw(renderer: &mut Renderer) {
 
     time_with_label("Render time");
-
-    // renderer.set_framebuffer(&renderer.main_framebuffer);
-
-    // renderer.gl.clear_color(0.0, 0.0, 0.2, 1.0);
-    // renderer.gl.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
-
-    // for primitive in renderer.primitives.iter() {
-
-    //     renderer.draw_primitive(primitive);
-    // }
-
     
     renderer.reset_framebuffer();
     renderer.gl.clear_color(0.6, 0.7, 0.8, 1.0);
     renderer.gl.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
 
-    for primitive in renderer.primitives.iter() {
 
-        renderer.draw_primitive(primitive);
-    }
+
+    // for primitive in renderer.primitives.iter() {
+
+    //     renderer.draw_primitive(primitive);
+    // }
 
     // renderer.gl.uniform1ui(renderer.shader_info.u_brush_type.as_ref(), 5);
     // // renderer.gl.active_texture(WebGl2RenderingContext::TEXTURE0);

@@ -28,13 +28,17 @@
 
         constructor() {
           super();
-          this.zoom = 1;
-          this.scroll = {x: 0, y: 0};
+          this.realViewport = null;
+          this.viewportDelta = null;
+          this.animationFrameHandle = null;
+          this.animationTimeLeft = 0;
+          this.lastAnimationTime = null;
         }
 
         resize(width, height) {
           pino.resize(this.cm.canvasElement.id, width, height);
           pino.redraw(this.cm.canvasElement.id);
+
         }
 
         /**
@@ -44,33 +48,113 @@
           pino.initialize(this.cm.canvasElement.id);
         }
 
-        updateViewport(viewport) {
-            // let oldzoom = this.zoom;
-            // this.zoom *= factor
-            // this.zoom = Math.max(Math.min(2,this.zoom),0.5);
-            // factor = this.zoom / oldzoom;
-            // console.log("Zoom factor " + this.zoom);
+        showViewport() {
+          // console.log(this.realViewport);
+          pino.animate_viewport(
+            this.cm.canvasElement.id, 
+            this.realViewport?.x ?? this.cm.viewport.x, 
+            this.realViewport?.y ?? this.cm.viewport.y, 
+            this.realViewport?.w ?? this.cm.viewport.w, 
+            this.realViewport?.h ?? this.cm.viewport.h
+          );
+        }
 
-            // this.scroll.x += (origin.x - this.scroll.x) * (1 - factor);
-            // this.scroll.y += (origin.y - this.scroll.y) * (1 - factor);
+        resetRealViewport() {
+          this.realViewport.x = this.cm.viewport.x;
+            this.realViewport.y = this.cm.viewport.y;
+            this.realViewport.w = this.cm.viewport.w;
+            this.realViewport.h = this.cm.viewport.h;
+            this.showViewport();
+        }
+
+        animateViewport() {
+          this.animationFrameHandle = requestAnimationFrame((time) => {
+            let elapsed;
+            if (this.lastAnimationTime != null) {
+                elapsed = time - this.lastAnimationTime;
+                this.lastAnimationTime = time;
+            } else {
+                elapsed = document.timeline.currentTime - time;
+                this.lastAnimationTime = document.timeline.currentTime;
+            }
+            const percentage = elapsed / this.animationTimeLeft;
+            
+
+            this.animationTimeLeft -= elapsed;
+            
+
+            if (this.animationTimeLeft <= 0) {
+              this.resetRealViewport();
+            } else {
+
+              const viewportDelta = {
+                x: this.cm.viewport.x - this.realViewport.x, 
+                y: this.cm.viewport.y - this.realViewport.y, 
+                w: this.cm.viewport.w - this.realViewport.w, 
+                h: this.cm.viewport.h - this.realViewport.h
+              };
+
+              this.realViewport.x += viewportDelta.x * percentage;
+              this.realViewport.y += viewportDelta.y * percentage;
+              this.realViewport.w += viewportDelta.w * percentage;
+              this.realViewport.h += viewportDelta.h * percentage;
+
+              this.showViewport();
+              
+              this.animateViewport();
+            }
+          });
+        }
+
+        updateViewport(viewport) {
+
+          if (this.realViewport != null) {
+            if (this.animationTimeLeft <= 0) {
+              if (Math.abs(this.cm.viewport.w - this.realViewport.w) > Number.EPSILON) {
+                this.animationTimeLeft = 200;
+                this.lastAnimationTime = document.timeline.currentTime;
+
+                if (this.animationFrameHandle === null) {
+                  cancelAnimationFrame(this.animationFrameHandle);
+                }
+                
+
+                this.animateViewport();
+              }
+              else {
+                this.resetRealViewport();
+              }
+
+            } else {
+              if (Math.abs(this.cm.viewport.w - this.realViewport.w) > Number.EPSILON) {
+                this.animationTimeLeft = 200;
+              }
+              else {
+                this.resetRealViewport();
+              }
+              
+            }
+          } else {
+            this.realViewport = {x: this.cm.viewport.x, y: this.cm.viewport.y, w: this.cm.viewport.w, h: this.cm.viewport.h};
+          }
 
             const zoomX = this.cm.width / viewport.w;
             const zoomY = this.cm.height / viewport.h;
           
-            pino.set_transform(this.cm.canvasElement.id, 
-              zoomX, 0, -viewport.x,
-              0, zoomY, -viewport.y,
-              0, 0, 1,
-            )
+            // pino.set_transform(this.cm.canvasElement.id, 
+            //   zoomX, 0, -viewport.x * zoomX,
+            //   0, zoomY, -viewport.y * zoomY,
+            //   0, 0, 1,
+            // )
+            
             
             this.redraw();
         }
 
 
         redraw(rect) {
-
-
-          pino.redraw(this.cm.canvasElement.id);
+          pino.redraw(this.cm.canvasElement.id, this.cm.viewport.x, this.cm.viewport.y, this.cm.viewport.w, this.cm.viewport.h);
+          this.showViewport();
         }
       }
 
@@ -89,11 +173,8 @@
        */
       click(pointer) {
           if (pointer.consecutiveClickCount == 0) {
-              this.cm.drawing.click = {x: pointer.x, y: pointer.y};
               this.cm.redraw();
           } else {
-              console.log(pointer.consecutiveClickCount)
-              this.cm.drawing.dbClick = {x: pointer.x, y: pointer.y};
               this.cm.redraw();
           }
 
@@ -104,7 +185,6 @@
        * @param {PointerData} pointer 
        */
       alternativeClick(pointer) {
-          this.cm.drawing.altClick = {x: pointer.x, y: pointer.y};
           this.cm.redraw();
       }
 
@@ -113,8 +193,8 @@
        * @param {PointerData} data 
        */;
       hover(pointer) {
-          this.cm.drawing.mouse = {x: pointer.x, y: pointer.y};
-          this.cm.redraw();
+          // this.cm.drawing.mouse = {x: pointer.x, y: pointer.y};
+          // this.cm.redraw();
       }
 
       /**
@@ -182,21 +262,21 @@
             ]);
 
 
-          // var image = new Image();
-          // image.src = "img/alert.png";
-          // image.addEventListener('load', function() {
-          //   // Now that the image has loaded make copy it to the texture.
-          //   pino.set_image_brush(canvas.id, image);
+          var image = new Image();
+          image.src = "img/alert.png";
+          image.addEventListener('load', function() {
+            // Now that the image has loaded make copy it to the texture.
+            pino.set_image_brush(canvas.id, image);
 
-          //   pino.add_polygon(canvas.id, "clockwise", [
-          //     200, 200,
-          //     800, 200,
-          //     800, 800,
-          //     200, 800
-          //   ]);
+            pino.add_polygon(canvas.id, "clockwise", [
+              800, 800,
+              1200, 800,
+              1200, 1200,
+              800, 1200
+            ]);
 
-          //   cm.redraw();
-          // }); 
+            cm.redraw();
+          }); 
 
 //         add_polygon(canvas.id, "counter-clockwise", [
 //           800, 100,

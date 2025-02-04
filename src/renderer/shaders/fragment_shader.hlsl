@@ -92,10 +92,10 @@ void main() {
         float t = mod(atan(coord.y - gradient_start.y, coord.x - gradient_start.x), TAU) / TAU;
 
         out_color = compute_gradient_color(t);
-    } else if (u_brush_type == uint(5)) { // texture_gradient 
+    } else if (u_brush_type == uint(5)) { // texture_brush
         vec2 coord = get_coord();
         vec2 texture_end = transform_point(brush_end, transform);
-        vec2 tex_pos = vec2(((coord.x) / texture_end.x),  ((coord.y) / texture_end.y));
+        vec2 tex_pos = vec2(((coord.x) / texture_end.x),  1.0-((coord.y) / texture_end.y));
         // vec2 coord = gl_FragCoord.xy;
         out_color = texture(u_texture, tex_pos);
 

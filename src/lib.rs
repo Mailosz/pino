@@ -4,10 +4,11 @@ use std::{collections::HashMap, f32::consts::PI, primitive};
 use base::log;
 use data::{Document};
 use js_sys::Math::atan2;
+use math::rect::Rect;
 use matrix::Matrix3x3;
 use num::iter;
 use once_cell::*;
-use renderer::{draw, tesselation::{normalize_polygon, tesselate_polygon}, Brush, Gradient, GradientStop, ImageData, Polygon, Primitive, Renderer, Triangles, TrianglesMode, P};
+use renderer::{redraw_viewport, show_viewport, tesselation::{normalize_polygon, tesselate_polygon}, Brush, Gradient, GradientStop, ImageData, Polygon, Primitive, Renderer, Triangles, TrianglesMode, P};
 use sync::Lazy;
 use wasm_bindgen::prelude::*;
 use web_sys::{console::{time_end_with_label, time_with_label}, Event, WebGl2RenderingContext};
@@ -81,12 +82,26 @@ pub fn resize(canvas_id : &str, width : i32, height : i32) -> Result<(), JsValue
 }
 
 #[wasm_bindgen]
-pub fn redraw(canvas_id : &str) -> Result<(), JsValue> {
+pub fn redraw(canvas_id : &str, x : f64, y : f64, w : f64, h : f64) -> Result<(), JsValue> {
 
-    draw(&get_context(canvas_id).renderer);
+    let viewport = Rect::new(x, y, w, h);
+
+    redraw_viewport(&mut get_context(canvas_id).renderer, viewport);
 
     Ok(())
 }
+
+
+#[wasm_bindgen]
+pub fn animate_viewport(canvas_id : &str, x : f64, y : f64, w : f64, h : f64) -> Result<(), JsValue> {
+
+    let viewport = Rect::new(x, y, w, h);
+
+    show_viewport(&mut get_context(canvas_id).renderer, viewport);
+
+    Ok(())
+}
+
 
 fn get_context(canvas_id : &str) -> &mut Context {
     let option: Option<&mut Context>;

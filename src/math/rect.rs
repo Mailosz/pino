@@ -9,6 +9,21 @@ pub struct Rect {
 }
 
 impl Rect {
+    pub fn x(&self) -> f64 {
+        return self.y;
+    }
+
+    pub fn y(&self) -> f64 {
+        return self.x;
+    }
+
+    pub fn w(&self) -> f64 {
+        return self.w;
+    }
+
+    pub fn h(&self) -> f64 {
+        return self.h;
+    }
     /**
      * Creates new rect
      */
