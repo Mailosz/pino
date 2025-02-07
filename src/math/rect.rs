@@ -36,4 +36,12 @@ impl Rect {
     pub fn to_bounds(&self) -> Bounds {
         Bounds::new_fast(self.x, self.y, self.x + self.w, self.y + self.h)
     }
+
+    pub fn moved_by(&self, x:f64,y:f64) -> Rect {
+        return Rect{x: self.x + x, y: self.y + y, w: self.w, h: self.h};
+    }
+
+    pub fn expanded_by(&self, x:f64, y:f64) -> Rect {
+        return Rect::new(self.x - x, self.y - y, self.w + x * 2.0, self.h + x * 2.0);
+    }
 }
