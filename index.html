@@ -50,7 +50,7 @@
 
         showViewport() {
           // console.log(this.realViewport);
-          pino.animate_viewport(
+          pino.show_viewport_frame(
             this.cm.canvasElement.id, 
             this.realViewport?.x ?? this.cm.viewport.x, 
             this.realViewport?.y ?? this.cm.viewport.y, 
@@ -67,7 +67,7 @@
             this.showViewport();
         }
 
-        animateViewport() {
+        animateViewportRenderFrame() {
           this.animationFrameHandle = requestAnimationFrame((time) => {
             let elapsed;
             if (this.lastAnimationTime != null) {
@@ -101,25 +101,30 @@
 
               this.showViewport();
               
-              this.animateViewport();
+              this.animateViewportRenderFrame();
             }
           });
         }
 
+
+        /**
+         * Called whenever the viewport changes
+         */
         updateViewport(viewport) {
+          const animationTime = 150;
 
           if (this.realViewport != null) {
             if (this.animationTimeLeft <= 0) {
               if (Math.abs(this.cm.viewport.w - this.realViewport.w) > Number.EPSILON) {
-                this.animationTimeLeft = 200;
+                this.animationTimeLeft = animationTime;
                 this.lastAnimationTime = document.timeline.currentTime;
 
-                if (this.animationFrameHandle === null) {
+                if (this.animationFrameHandle !== null) {
                   cancelAnimationFrame(this.animationFrameHandle);
                 }
                 
 
-                this.animateViewport();
+                this.animateViewportRenderFrame();
               }
               else {
                 this.resetRealViewport();
@@ -127,7 +132,7 @@
 
             } else {
               if (Math.abs(this.cm.viewport.w - this.realViewport.w) > Number.EPSILON) {
-                this.animationTimeLeft = 200;
+                this.animationTimeLeft = animationTime;
               }
               else {
                 this.resetRealViewport();

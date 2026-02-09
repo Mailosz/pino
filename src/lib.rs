@@ -8,7 +8,7 @@ use math::rect::Rect;
 use matrix::Matrix3x3;
 use num::iter;
 use once_cell::*;
-use renderer::{redraw_viewport, show_viewport, tesselation::{normalize_polygon, tesselate_polygon}, Brush, Gradient, GradientStop, ImageData, Polygon, Primitive, Renderer, Triangles, TrianglesMode, P};
+use renderer::{refresh_viewport, render_screen, tesselation::{normalize_polygon, tesselate_polygon}, Brush, Gradient, GradientStop, ImageData, Polygon, Primitive, Renderer, Triangles, TrianglesMode, P};
 use sync::Lazy;
 use wasm_bindgen::prelude::*;
 use web_sys::{console::{time_end_with_label, time_with_label}, Event, WebGl2RenderingContext};
@@ -72,11 +72,12 @@ pub fn resize(canvas_id : &str, width : i32, height : i32) -> Result<(), JsValue
 
     let context = get_context(canvas_id);
 
-    context.renderer.resize_viewport(width, height);
+    context.renderer.resize_screen(width, height);
 
     context.canvas_element.set_width(width as u32);
     context.canvas_element.set_height(height as u32);
 
+// TODO: redraw screen after resize
 
     Ok(())
 }
@@ -86,18 +87,18 @@ pub fn redraw(canvas_id : &str, x : f64, y : f64, w : f64, h : f64) -> Result<()
 
     let viewport = Rect::new(x, y, w, h);
 
-    redraw_viewport(&mut get_context(canvas_id).renderer, viewport);
+    refresh_viewport(&mut get_context(canvas_id).renderer, viewport);
 
     Ok(())
 }
 
 
 #[wasm_bindgen]
-pub fn animate_viewport(canvas_id : &str, x : f64, y : f64, w : f64, h : f64) -> Result<(), JsValue> {
+pub fn show_viewport_frame(canvas_id : &str, x : f64, y : f64, w : f64, h : f64) -> Result<(), JsValue> {
 
     let viewport = Rect::new(x, y, w, h);
 
-    show_viewport(&mut get_context(canvas_id).renderer, viewport);
+    render_screen(&mut get_context(canvas_id).renderer, viewport);
 
     Ok(())
 }

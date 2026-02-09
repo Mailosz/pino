@@ -1,4 +1,4 @@
-use std::{borrow::Borrow, f32::consts::PI, primitive, time::Instant};
+use std::{borrow::Borrow, cell::RefCell, f32::consts::PI, mem, primitive, time::Instant};
 
 use shaders::{ create_shader_program, ShaderInfo};
 use wasm_bindgen::prelude::*;
@@ -13,7 +13,11 @@ pub struct Renderer {
     program : WebGlProgram,
     primitives : Vec<Primitive>,
     shader_info : ShaderInfo,
-    main_viewport : ViewportData,
+    current_viewport : Rect,
+    viewports : Vec<ViewportData>,
+    main_viewport_index : usize,
+    cache_viewport_index : usize,
+    zoom_mode : ZoomMode,
     width : i32,
     height: i32
 }
@@ -21,8 +25,14 @@ pub struct Renderer {
 struct ViewportData {
     viewport: Rect,
     framebuffer: FramebufferData
+
 }
 
+impl ViewportData {
+    pub fn empty() -> ViewportData {
+        ViewportData{viewport: Rect::new(0.0, 0.0, 1.0, 1.0), framebuffer: FramebufferData{framebuffer: Option::None, texture : Option::None, width: 1, height: 1, drawn: false}}
+    }
+}
 
 struct FramebufferData {
     framebuffer : Option<web_sys::WebGlFramebuffer>,
@@ -30,6 +40,10 @@ struct FramebufferData {
     width : i32,
     height: i32,
     drawn : bool,
+}
+
+enum ZoomMode {
+    In, Out, None
 }
 
 impl Renderer {
@@ -45,7 +59,11 @@ impl Renderer {
             program : program,
             primitives : vec![Primitive{parts : vec![Triangles{vertices:vec![10.0, 30.0, 170.0, 30.0, 100.0, 170.0], mode: TrianglesMode::Strip}], fill: Brush::Color(0.2, 0.7, 0.5, 1.0)}],
             shader_info : shader_info,
-            main_viewport : ViewportData{viewport: Rect::new(0.0, 0.0, 1.0, 1.0), framebuffer:FramebufferData{framebuffer: Option::None, texture : Option::None, width: 1, height: 1, drawn: false}},
+            current_viewport : Rect::new(0.0, 0.0, 1.0, 1.0),
+            viewports : vec![ViewportData::empty(), ViewportData::empty()],
+            main_viewport_index : 0,
+            cache_viewport_index : 1,
+            zoom_mode : ZoomMode::None,
             width: 1,
             height: 1
         };
@@ -55,6 +73,9 @@ impl Renderer {
         return renderer;
     }
 
+    /**
+     * Sets the current framebuffer for OpenGL
+     */
     pub fn set_framebuffer(&self, framebuffer_data : &FramebufferData) {
         self.gl.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, framebuffer_data.framebuffer.as_ref());
 
@@ -99,14 +120,14 @@ impl Renderer {
 
     }
 
-    pub fn create_texture_framebuffer(&self, width : i32, height : i32) -> FramebufferData{
+    pub fn create_texture_framebuffer(gl : &WebGl2RenderingContext, width : i32, height : i32) -> FramebufferData{
 
-        let texture = self.gl.create_texture();
+        let texture = gl.create_texture();
 
-        self.gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, texture.as_ref());
+        gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, texture.as_ref());
 
         let internal_format = WebGl2RenderingContext::RGBA;
-        let tex = self.gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array(
+        let tex = gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array(
             WebGl2RenderingContext::TEXTURE_2D, 
             0, 
             internal_format as i32, // internalFormat
@@ -118,13 +139,13 @@ impl Renderer {
             Option::None // data is null - we will render into it
             );
 
-        let framebuffer = self.gl.create_framebuffer();
-        self.gl.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, framebuffer.as_ref());
+        let framebuffer = gl.create_framebuffer();
+        gl.bind_framebuffer(WebGl2RenderingContext::FRAMEBUFFER, framebuffer.as_ref());
         //attach texture to framebuffer
         let level : i32 = 0; // Dont know what's this
-        self.gl.framebuffer_texture_2d(WebGl2RenderingContext::FRAMEBUFFER, WebGl2RenderingContext::COLOR_ATTACHMENT0, WebGl2RenderingContext::TEXTURE_2D, texture.as_ref(), level);
+        gl.framebuffer_texture_2d(WebGl2RenderingContext::FRAMEBUFFER, WebGl2RenderingContext::COLOR_ATTACHMENT0, WebGl2RenderingContext::TEXTURE_2D, texture.as_ref(), level);
         
-        self.gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
+        gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
         //
         return FramebufferData{framebuffer: framebuffer, texture : texture, width: width, height : height, drawn: false};
     }
@@ -195,8 +216,10 @@ impl Renderer {
         }
     }
 
+    /**
+     * Draws the framebuffer contents to the screen
+     */
     fn draw_framebuffer(&self, framebuffer_data : &FramebufferData) {
-
 
         let width = framebuffer_data.width as f32;
         let height = framebuffer_data.height as f32;
@@ -217,22 +240,35 @@ impl Renderer {
         self.gl.bind_texture(WebGl2RenderingContext::TEXTURE_2D, None);
     }
 
-    pub fn resize_viewport(&mut self, width : i32, height : i32) {
+    /**
+     * Resizes all the viewport buffers
+     */
+    pub fn resize_screen(&mut self, width : i32, height : i32) {
 
         self.width = width;
         self.height = height;
 
-        // resize framebuffer
-        self.gl.delete_framebuffer(self.main_viewport.framebuffer.framebuffer.as_ref());
-        self.gl.delete_texture(self.main_viewport.framebuffer.texture.as_ref());
-        self.main_viewport.framebuffer = self.create_texture_framebuffer(width, height);
-        //
+        // resize framebuffers
+        for viewport in &mut self.viewports {
+            Renderer::resize_viewport_framebuffer(&self.gl, viewport, width, height); 
+        }
 
         // set resolution for a shader
         self.gl.uniform2f(self.shader_info.u_res.as_ref(), width as f32, height as f32);
 
         // set viewport for WebGL
         self.gl.viewport(0,0, width, height);
+    }
+
+    /**
+     * Deletes the current framebuffer and creates new one for specified dimensions
+     */
+    fn resize_viewport_framebuffer(gl : &WebGl2RenderingContext, viewport_data : &mut ViewportData, width : i32, height : i32) {
+
+        // resize framebuffer
+        gl.delete_framebuffer(viewport_data.framebuffer.framebuffer.as_ref());
+        gl.delete_texture(viewport_data.framebuffer.texture.as_ref());
+        viewport_data.framebuffer = Renderer::create_texture_framebuffer(gl, width, height);
     }
 
     fn set_brush(&self, brush : &Brush) {
@@ -299,8 +335,27 @@ impl Renderer {
         self.primitives.push(primitive);
     }
 
-    pub fn redraw_viewport(&mut self, viewport : Rect) {
-        self.set_framebuffer(&self.main_viewport.framebuffer);
+    /**
+     * 
+     */
+    pub fn refresh_view(&mut self, target_viewport : &Rect) {
+
+        if (self.viewports[self.main_viewport_index].viewport.contains_rect(target_viewport)) {
+            // if the before viewport covers the 
+            self.zoom_mode = ZoomMode::In;
+            if (self.viewports[self.main_viewport_index].viewport.contains_rect(&self.current_viewport)) {
+                mem::swap(&mut self.main_viewport_index, &mut self.cache_viewport_index);
+            }
+        } else {
+            self.zoom_mode = ZoomMode::Out;
+        }
+        
+        self.refresh_viewport_data(self.main_viewport_index, &target_viewport);
+
+    }
+
+    pub fn refresh_viewport_data(&mut self, viewport_index : usize , viewport : &Rect) {
+        self.set_framebuffer(&self.viewports[viewport_index].framebuffer);
 
         let zoomX = self.width as f32 / viewport.w() as f32;
         let zoomY = self.height as f32 / viewport.h() as f32;
@@ -317,9 +372,39 @@ impl Renderer {
         for primitive in self.primitives.iter() {
             self.draw_primitive(primitive);
         }
+
+        let viewport_data = &mut self.viewports[viewport_index];//.framebuffer.drawn = true;
         
-        self.main_viewport.framebuffer.drawn = true;
-        self.main_viewport.viewport = viewport;
+        viewport_data.framebuffer.drawn = true;
+        viewport_data.viewport = viewport.clone();
+    }
+    
+    /**
+     * Draws the framebuffer data to the screen, applying necessary transformations to fit the viewport
+     */
+    fn draw_viewport(&self, viewport_index: usize, viewport: &Rect) -> () {
+        let viewport_data = &self.viewports[viewport_index];
+
+        if (!viewport_data.framebuffer.drawn) {
+            return;
+        }
+
+        let zoomX = viewport_data.viewport.w() / viewport.w();
+        let zoomY = viewport_data.viewport.h() / viewport.h();
+        let offsetX = (viewport_data.viewport.x() - viewport.x()) / (viewport.w() / self.width as f64);
+        let offsetY = (viewport_data.viewport.y() - viewport.y()) / (viewport.h() / self.height as f64);
+
+        // scrollX = this.viewport.x - (origin.x - this.viewport.x) * ((zoomX) - 1);
+
+
+        self.set_transform(Matrix3x3::new(
+            zoomY as f32, 0.0, offsetY as f32,
+            0.0, zoomX as f32, offsetX as f32,
+            0.0, 0.0, 1.0
+        ));
+
+
+        self.draw_framebuffer(&viewport_data.framebuffer);
     }
 
 }
@@ -402,40 +487,41 @@ pub struct Polygon {
     pub points : Vec<P>
 }
 
+/**
+ * Causes the target viewport dimensions to be set, and redraws it
+ */
+pub fn refresh_viewport(renderer: &mut Renderer, viewport : Rect ) {
 
-pub fn redraw_viewport(renderer: &mut Renderer, viewport : Rect ) {
-
-
-    renderer.redraw_viewport(viewport);
-
+    renderer.refresh_view(&viewport);
+    
 }
 
-pub fn show_viewport(renderer: &mut Renderer, viewport : Rect ) {
-
-    if (!renderer.main_viewport.framebuffer.drawn) {
-        renderer.redraw_viewport(viewport.clone());
-    }
+/**
+ * Renders everything to the screen
+ */
+pub fn render_screen(renderer: &mut Renderer, viewport : Rect ) {
 
     renderer.reset_framebuffer();
     renderer.gl.clear_color(0.6, 0.7, 0.8, 1.0);
     renderer.gl.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
 
-    let zoomX = renderer.main_viewport.viewport.w() / viewport.w();
-    let zoomY = renderer.main_viewport.viewport.h() / viewport.h();
-    let offsetX = (renderer.main_viewport.viewport.x() - viewport.x()) / (viewport.w() / renderer.width as f64);
-    let offsetY = (renderer.main_viewport.viewport.y() - viewport.y()) / (viewport.h() / renderer.height as f64);
+    renderer.current_viewport = viewport.clone();
+    
+    match renderer.zoom_mode {
+        ZoomMode::In => {
+            renderer.draw_viewport(renderer.cache_viewport_index, &viewport);
+            renderer.draw_viewport(renderer.main_viewport_index, &viewport);
+        },
+        ZoomMode::Out => {
+            renderer.draw_viewport(renderer.main_viewport_index, &viewport);
+            renderer.draw_viewport(renderer.cache_viewport_index, &viewport);
+        },
+        ZoomMode::None => {
+            renderer.draw_viewport(renderer.main_viewport_index, &viewport);
+        }
+    }
 
-    // scrollX = this.viewport.x - (origin.x - this.viewport.x) * ((zoomX) - 1);
 
-
-    renderer.set_transform(Matrix3x3::new(
-        zoomY as f32, 0.0, offsetY as f32,
-        0.0, zoomX as f32, offsetX as f32,
-        0.0, 0.0, 1.0
-    ));
-
-
-    renderer.draw_framebuffer(&renderer.main_viewport.framebuffer);
 
 }
 

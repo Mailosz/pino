@@ -44,4 +44,30 @@ impl Rect {
     pub fn expanded_by(&self, x:f64, y:f64) -> Rect {
         return Rect::new(self.x - x, self.y - y, self.w + x * 2.0, self.h + x * 2.0);
     }
+
+    pub fn contains_point(&self, x:f64, y:f64) -> bool {
+        return self.x <= x && self.y <= y && self.x + self.w >= x && self.y + self.h >= y;
+    }
+
+    pub fn contains_rect(&self, other: &Rect) -> bool {
+        return self.x <= other.x && self.y <= other.y &&
+               self.x + self.w >= other.x + other.w &&
+               self.y + self.h >= other.y + other.h;
+    }
+
+    pub fn contains_bounds(&self, bounds: &Bounds) -> bool {
+        return self.x <= bounds.l() && self.y <= bounds.t() &&
+               self.x + self.w >= bounds.r() &&
+               self.y + self.h >= bounds.b();
+    }
+
+    pub fn intersects_bounds(&self, bounds: &Bounds) -> bool {
+        return self.x < bounds.r() && self.x + self.w > bounds.l() &&
+               self.y < bounds.b() && self.y + self.h > bounds.t();
+    }
+
+    pub fn intersects_rect(&self, other : &Rect) -> bool {
+        return self.x < other.x + other.w && self.x + self.w > other.x &&
+               self.y < other.y + other.h && self.y + self.h > other.y;
+    }
 }
